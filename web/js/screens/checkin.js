@@ -9,6 +9,7 @@ import {
   formatNo, parseTypedNumber, parseQr, suggestNext, blockedNumbers, validateForCheckin,
   maxTicketNo, remainingTickets, ticketMessage,
 } from '../../shared/ticket.js';
+import { findPlateDuplicate } from '../../shared/sessions.js';
 import { VEHICLE_TYPES, priceFor } from '../../shared/pricing.js';
 
 const UNDO_MS = 10000;
@@ -36,6 +37,7 @@ export async function render(root, ctx) {
   });
   const error = h('div', { id: 'checkin-error', class: 'error-text' });
   const warn = h('div', { id: 'checkin-warn', class: 'warn-text' });
+  const plateDup = h('div', { id: 'plate-dup', class: 'banner warn hidden' });
   const video = h('video', { id: 'cam', autoplay: true, muted: true, playsinline: true });
   const camMsg = h('div', { class: 'photo-missing hidden', id: 'cam-msg' });
   const torchBtn = h('button', { type: 'button', class: 'hidden', title: 'Đèn' }, '🔦');
@@ -49,7 +51,7 @@ export async function render(root, ctx) {
   const captureBtn = h('button', { type: 'button', id: 'capture', class: 'primary' }, '📷 CHỤP — GỬI XE');
 
   root.replaceChildren(
-    banner, label, numberInput, error, warn,
+    banner, plateDup, label, numberInput, error, warn,
     h('div', { class: 'segmented' }, typeBtns),
     camBox, camMsg,
     h('div', { style: 'margin-top:10px' }, noTicketBtn),
@@ -217,6 +219,10 @@ export async function render(root, ctx) {
     batches = await db.getMeta('batches', []);
     const blocked = blockedNumbers(sessions, today);
     if (!edited && blocked.has(current)) current = suggestNext(current - 1, blocked);
+    // Biển số AI vừa đọc trùng một xe khác đang trong bãi → báo nhẹ, không chặn (FR-022).
+    const dup = findPlateDuplicate(sessions, ctx.deviceId, new Date(ctx.now() - 5 * 60000).toISOString());
+    plateDup.classList.toggle('hidden', !dup);
+    plateDup.textContent = dup ? `ℹ Biển số ${dup.session.plate} (phiếu ${formatNo(dup.session.ticketNo)}) đã có trong bãi ở phiếu ${formatNo(dup.other.ticketNo)} — kiểm tra lại` : '';
     paint();
   };
   window.addEventListener('sync:changed', onSync);

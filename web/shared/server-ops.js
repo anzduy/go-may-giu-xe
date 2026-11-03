@@ -96,6 +96,7 @@ const HANDLERS = {
   checkout: (st, op) => opTransition(st, op, 'checkout'),
   undo: (st, op) => opTransition(st, op, 'undo'),
   provisionalCheckout: opProvisional,
+  setPlate: (st, op) => opTransition(st, op, 'set_plate'),
 };
 
 /**

@@ -4,6 +4,8 @@ var ROUTES = {
   login: { fn: function (d) { return login(d); }, auth: false },
   push: { fn: function (d, a) { return push(d, a); } },
   pull: { fn: function (d, a) { return pull(d, a); } },
+  uploadPhoto: { fn: function (d, a) { return uploadPhoto(d, a); } },
+  getPhoto: { fn: function (d, a) { return getPhoto(d, a); } },
   createBatch: { fn: function (d, a) { return createBatch(d, a); }, manager: true },
   listBatches: { fn: function (d, a) { return listBatches(d, a); }, manager: true },
   reprintBatch: { fn: function (d, a) { return reprintBatch(d, a); }, manager: true },
@@ -18,6 +20,7 @@ var ERROR_MESSAGES = {
   BAD_LOGIN: 'Sai tên hoặc mã PIN',
   STAFF_INACTIVE: 'Tài khoản đã bị khóa',
   BUSY: 'Máy chủ đang bận, máy sẽ tự thử lại',
+  PHOTO_NOT_FOUND: 'Chưa có ảnh này trên máy chủ',
 };
 
 function json_(obj) {

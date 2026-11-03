@@ -8,7 +8,7 @@ var HEADERS = {
     'conflict', 'mergedInto', 'rev'],
   TicketBatches: ['date', 'fromNo', 'toNo', 'createdBy', 'createdAt'],
   Photos: ['id', 'sessionId', 'kind', 'takenAt', 'deviceId', 'driveFileId', 'uploadedAt', 'analysisStatus', 'plate',
-    'color', 'vehicleTypeSeen', 'helmetsOnVehicle', 'helmetsWorn', 'otherItems', 'confidence', 'analyzedAt'],
+    'color', 'vehicleTypeSeen', 'helmetsOnVehicle', 'helmetsWorn', 'otherItems', 'confidence', 'analyzedAt', 'analysisAttempts'],
   Alerts: ['id', 'sessionId', 'kind', 'level', 'message', 'inValue', 'outValue', 'createdAt', 'notifyStaffId', 'status',
     'resolution', 'resolvedBy', 'resolvedAt', 'note', 'rev'],
   Prices: ['effectiveFrom', 'motorbike', 'ebike', 'bicycle', 'lostFee', 'setBy'],
@@ -21,7 +21,7 @@ var HEADERS = {
 };
 
 var NUMBER_COLS = ['ticketNo', 'fee', 'priceAtIn', 'rev', 'fromNo', 'toNo', 'motorbike', 'ebike', 'bicycle', 'lostFee',
-  'helmetsOnVehicle', 'helmetsWorn'];
+  'helmetsOnVehicle', 'helmetsWorn', 'analysisAttempts'];
 var BOOL_COLS = ['noTicket', 'active', 'revoked'];
 var JSON_COLS = ['otherItems', 'confidence', 'summary', 'detail'];
 

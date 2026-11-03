@@ -30,6 +30,7 @@ function fakeGoogle() {
         setFontWeight() { return this; },
       }),
       setFrozenRows() {},
+      clearContents() { data.length = 0; },
     };
     sheets.set(name, sh);
     return sh;
@@ -42,17 +43,60 @@ function fakeGoogle() {
     getSheets: () => [...sheets.values()],
     deleteSheet: (sh) => sheets.delete(sh.name),
   };
-  const folder = (name) => ({ getId: () => `folder-${name}`, getFoldersByName: () => ({ hasNext: () => false }), createFolder: (n) => folder(n) });
+  // Drive giả: thư mục, file (lưu bytes), thùng rác
+  const files = new Map();
+  const folders = new Map();
+  const iter = (arr) => { let i = 0; return { hasNext: () => i < arr.length, next: () => arr[i++] }; };
+  const folder = (name, parent) => {
+    const f = {
+      id: `folder-${folders.size + 1}`, name, parent, trashed: false, children: [],
+      getId() { return this.id; }, getName() { return this.name; },
+      setTrashed(t) { this.trashed = t; },
+      getFoldersByName(n) { return iter(this.children.filter((c) => c.name === n && !c.trashed)); },
+      getFolders() { return iter(this.children.filter((c) => !c.trashed)); },
+      createFolder(n) { const c = folder(n, this); this.children.push(c); return c; },
+      createFile(blob) {
+        const file = { id: `file-${files.size + 1}`, name: blob.name, bytes: blob.bytes, folder: this, trashed: false,
+          getId() { return this.id; }, setTrashed(t) { this.trashed = t; }, getBlob() { return { getBytes: () => this.bytes }; } };
+        files.set(file.id, file);
+        return file;
+      },
+    };
+    folders.set(f.id, f);
+    return f;
+  };
+  const root = folder('root');
+  const spreadsheets = new Map();
+  const fetches = [];
+  let fetchImpl = () => ({ code: 500, body: '{}' });
+  const makeSpreadsheet = (name) => {
+    const own = new Map();
+    const ss = {
+      id: `ss-${spreadsheets.size + 1}`, name, sheets: own,
+      getId() { return this.id; },
+      getSheetByName: (n) => own.get(n) || null,
+      insertSheet: (n) => { const sh = makeSheet(n); sheets.delete(n); own.set(n, sh); return sh; },
+    };
+    spreadsheets.set(ss.id, ss);
+    return ss;
+  };
   return {
-    sheets,
+    sheets, files, folders, root, spreadsheets, fetches,
+    setFetch(fn) { fetchImpl = fn; },
     globals: {
-      SpreadsheetApp: { getActiveSpreadsheet: () => spreadsheet },
+      SpreadsheetApp: { getActiveSpreadsheet: () => spreadsheet, create: (n) => makeSpreadsheet(n), openById: (id) => spreadsheets.get(id) },
+      UrlFetchApp: { fetch: (url, opts) => { fetches.push({ url, opts }); const r = fetchImpl(url, opts); return { getResponseCode: () => r.code, getContentText: () => r.body }; } },
       PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => (props.has(k) ? props.get(k) : null), setProperty: (k, v) => props.set(k, String(v)) }) },
       LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock: () => {} }) },
       CacheService: { getScriptCache: () => ({ get: (k) => cache.get(k) ?? null, put: (k, v) => cache.set(k, v), remove: (k) => cache.delete(k) }) },
-      Utilities: { getUuid: () => crypto.randomUUID() },
+      Utilities: {
+        getUuid: () => crypto.randomUUID(),
+        base64Decode: (b64) => [...Buffer.from(b64, 'base64')],
+        base64Encode: (bytes) => Buffer.from(bytes).toString('base64'),
+        newBlob: (bytes, type, name) => ({ bytes, type, name, getBytes: () => bytes }),
+      },
       ContentService: { MimeType: { JSON: 'json' }, createTextOutput: (s) => ({ content: s, setMimeType() { return this; } }) },
-      DriveApp: { getRootFolder: () => folder('root') },
+      DriveApp: { getRootFolder: () => root, getFolderById: (id) => folders.get(id), getFileById: (id) => files.get(id) },
       ScriptApp: { getProjectTriggers: () => [], newTrigger: () => ({ timeBased: () => ({ everyDays: () => ({ atHour: () => ({ create() {} }) }), everyMinutes: () => ({ create() {} }) }) }) },
       Logger: { log() {} },
       console,
@@ -62,11 +106,12 @@ function fakeGoogle() {
 
 let gas;
 let pin;
+let fake;
 const call = (action, data, token, deviceId = 'dev1') =>
   JSON.parse(gas.doPost({ postData: { contents: JSON.stringify({ action, data, token, deviceId }) } }).content);
 
 beforeAll(() => {
-  const fake = fakeGoogle();
+  fake = fakeGoogle();
   const ctx = vm.createContext({ ...fake.globals });
   const dir = path.resolve('gas');
   const order = ['Shared.js', ...fs.readdirSync(dir).filter((f) => f.endsWith('.js') && f !== 'Shared.js').sort()];
@@ -138,5 +183,100 @@ describe('Apps Script (giả lập)', () => {
   it('nhật ký ghi đủ thao tác', () => {
     const actions = gas.__sheets.get('Audit').data.slice(1).map((r) => r[3]);
     expect(actions).toEqual(expect.arrayContaining(['staff_change', 'create_batch', 'create', 'checkout']));
+  });
+
+  it('tải ảnh lên Drive theo ngày, gửi lại không tạo file thứ hai, lấy lại được ảnh', () => {
+    const jpeg = Buffer.from('anh-xe-gia').toString('base64');
+    const up = { photoId: 'ph1', sessionId: 'ses1', kind: 'in', takenAt: new Date().toISOString(), jpegBase64: jpeg };
+    const r = call('uploadPhoto', up, staffToken, 'dA');
+    expect(r.ok).toBe(true);
+    const file = fake.files.get(r.data.driveFileId);
+    expect(file.name).toBe('001_in_ph1.jpg');
+    expect(file.folder.name).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(file.folder.parent.name).toBe('Anh');
+    expect(call('uploadPhoto', up, staffToken, 'dA').data).toMatchObject({ driveFileId: r.data.driveFileId, duplicate: true });
+    expect([...fake.files.values()].filter((f) => !f.trashed)).toHaveLength(1);
+    expect(call('getPhoto', { photoId: 'ph1' }, manager, 'dB').data.jpegBase64).toBe(jpeg);
+    expect(call('getPhoto', { photoId: 'khong-co' }, manager, 'dB').error.code).toBe('PHOTO_NOT_FOUND');
+  });
+
+  it('chưa cấu hình khóa AI → không gọi AI, ảnh ghi "disabled"', () => {
+    expect(fake.fetches).toHaveLength(0);
+    const row = gas.findBy('Photos', 'id', 'ph1');
+    expect(row.analysisStatus).toBe('disabled');
+  });
+
+  it('có khóa Gemini: AI đọc biển số + màu + mũ, gắn vào lượt gửi và tới máy khác qua pull', () => {
+    const props = gas.PropertiesService.getScriptProperties();
+    props.setProperty('VISION_API_KEY', 'khoa-thu');
+    const reply = { plate: '59X1-123.45', color: 'đỏ', vehicleType: 'motorbike', helmetsOnVehicle: 2, helmetsWorn: 0, otherItems: [],
+      confidence: { plate: 0.95, color: 0.9, helmets: 0.9 } };
+    fake.setFetch(() => ({ code: 200, body: JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify(reply) }] } }] }) }));
+    const inAt = new Date().toISOString();
+    call('push', { ops: [{ opId: 'op9', type: 'createSession', createdAt: inAt,
+      payload: { id: 'ses9', ticketDate: today(), ticketNo: 9, noTicket: false, vehicleType: 'motorbike', inAt, inPhotoId: 'ph9' } }] }, staffToken, 'dA');
+    const before = call('pull', { sinceRev: 0 }, manager, 'dB').data.rev;
+    const r = call('uploadPhoto', { photoId: 'ph9', sessionId: 'ses9', kind: 'in', takenAt: inAt, jpegBase64: Buffer.from('x').toString('base64') }, staffToken, 'dA');
+    expect(r.ok).toBe(true);
+    expect(fake.fetches.at(-1).url).toContain('generativelanguage.googleapis.com');
+    expect(fake.fetches.at(-1).opts.headers['x-goog-api-key']).toBe('khoa-thu');
+    const p = call('pull', { sinceRev: before }, manager, 'dB').data;
+    expect(p.sessions.find((s) => s.id === 'ses9')).toMatchObject({ plate: '59X1-123.45', plateStatus: 'read', inSummary: 'Xe máy màu đỏ · 2 mũ' });
+    expect(gas.findBy('Photos', 'id', 'ph9')).toMatchObject({ analysisStatus: 'done', color: 'đỏ', helmetsOnVehicle: 2 });
+  });
+
+  it('Claude: gửi đúng định dạng Messages API, đọc kết quả JSON', () => {
+    const props = gas.PropertiesService.getScriptProperties();
+    props.setProperty('VISION_PROVIDER', 'claude');
+    const reply = { plate: '', color: 'xanh dương', vehicleType: 'bicycle', helmetsOnVehicle: 0, helmetsWorn: 1, otherItems: [], confidence: { plate: 0, color: 0.9, helmets: 0.8 } };
+    fake.setFetch(() => ({ code: 200, body: JSON.stringify({ stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify(reply) }] }) }));
+    const res = gas.analyzeBlob_({ getBytes: () => [1, 2, 3] });
+    const req = fake.fetches.at(-1);
+    expect(req.url).toBe('https://api.anthropic.com/v1/messages');
+    expect(req.opts.headers).toMatchObject({ 'x-api-key': 'khoa-thu', 'anthropic-version': '2026-10-21' });
+    const body = JSON.parse(req.opts.payload);
+    expect(body.model).toBe('claude-haiku-5-5');
+    expect(body.temperature).toBeUndefined();
+    expect(body.output_config.format.type).toBe('json_schema');
+    expect(body.messages[0].content[0]).toMatchObject({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg' } });
+    expect(res).toMatchObject({ ok: true, analysis: { color: 'xanh dương', helmetsWorn: 1, plate: '' } });
+    fake.setFetch(() => ({ code: 200, body: JSON.stringify({ stop_reason: 'refusal', content: [] }) }));
+    expect(gas.analyzeBlob_({ getBytes: () => [1] })).toMatchObject({ ok: false, error: 'REFUSAL' });
+    props.setProperty('VISION_PROVIDER', 'gemini');
+  });
+
+  it('AI lỗi → ảnh "failed", tải ảnh vẫn thành công; trigger 5 phút phân tích lại', () => {
+    fake.setFetch(() => ({ code: 503, body: '{}' }));
+    const takenAt = new Date().toISOString();
+    expect(call('uploadPhoto', { photoId: 'ph10', sessionId: 'ses9', kind: 'out', takenAt, jpegBase64: 'eA==' }, staffToken, 'dA').ok).toBe(true);
+    expect(gas.findBy('Photos', 'id', 'ph10').analysisStatus).toBe('failed');
+    // giả như đã tải lên 3 phút trước
+    const sh = fake.sheets.get('Photos');
+    const cols = gas.HEADERS.Photos;
+    const row = sh.data.find((r) => r[0] === 'ph10');
+    row[cols.indexOf('uploadedAt')] = new Date(Date.now() - 180000).toISOString();
+    const reply = { plate: '', color: 'đỏ', vehicleType: 'motorbike', helmetsOnVehicle: 1, helmetsWorn: 0, otherItems: [], confidence: { plate: 0, color: 0.9, helmets: 0.9 } };
+    fake.setFetch(() => ({ code: 200, body: JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify(reply) }] } }] }) }));
+    expect(gas.retryFailedAnalyses()).toBe(1);
+    expect(gas.findBy('Photos', 'id', 'ph10')).toMatchObject({ analysisStatus: 'done', helmetsOnVehicle: 1, analysisAttempts: 2 });
+  });
+
+  it('dọn đêm: thư mục ảnh > 30 ngày vào thùng rác; dòng > 90 ngày dời sang file lưu trữ (không mất)', () => {
+    const photosRoot = fake.folders.get(gas.PropertiesService.getScriptProperties().getProperty('PHOTO_FOLDER_ID'));
+    const old = photosRoot.createFolder('2020-01-01');
+    const sh = fake.sheets.get('Sessions');
+    const cols = gas.HEADERS.Sessions;
+    const oldRow = cols.map((c) => ({ id: 'old1', ticketDate: '20200101', ticketNo: '5', status: 'returned', inAt: '2020-01-01T03:00:00.000Z', outAt: '2020-01-01T04:00:00.000Z', rev: '1' }[c] || ''));
+    sh.data.push(oldRow);
+    const total = sh.data.length;
+    const r = gas.nightlyCleanup();
+    expect(r.trashedFolders).toBe(1);
+    expect(old.trashed).toBe(true);
+    expect(r.archived.Sessions).toBe(1);
+    expect(sh.data).toHaveLength(total - 1);
+    expect(sh.data.some((row) => row[0] === 'old1')).toBe(false);
+    const arch = [...fake.spreadsheets.values()].find((x) => x.name.startsWith('GoMay-GiuXe-LuuTru-'));
+    expect(arch.sheets.get('Sessions').data.some((row) => row[0] === 'old1')).toBe(true);
+    expect(sh.data.some((row) => row[0] === 'ses9')).toBe(true); // dữ liệu mới giữ nguyên
   });
 });

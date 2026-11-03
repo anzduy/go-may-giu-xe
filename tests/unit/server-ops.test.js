@@ -105,3 +105,13 @@ describe('checkout và trả xe tạm', () => {
     expect(st.sessions.has('pv1')).toBe(false);
   });
 });
+
+describe('setPlate', () => {
+  it('nhân viên sửa tay biển số → manual, có nhật ký', () => {
+    const st = state();
+    applyPush(st, [create('o1', 's1', 5)]);
+    const r = applyPush(st, [mk('o2', 'setPlate', { sessionId: 's1', plate: '59X1-123.45' })]);
+    expect(r.results[0].session).toMatchObject({ plate: '59X1-123.45', plateStatus: 'manual' });
+    expect(r.audits[0].action).toBe('set_plate');
+  });
+});

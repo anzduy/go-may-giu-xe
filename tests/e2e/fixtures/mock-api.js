@@ -2,6 +2,7 @@
 // web/shared/server-ops.js mà Apps Script dùng (gas/Sessions.js), để test kiểm tra logic thật.
 import { applyPush, newState } from '../../../web/shared/server-ops.js';
 import { encodeQr, maxTicketNo, dateKey } from '../../../web/shared/ticket.js';
+import { applyInAnalysis } from '../../../web/shared/vision.js';
 
 export const MOCK_URL = 'https://mock.gomay.test/macros/s/test/exec';
 export const SECRET = 'bi-mat-thu-nghiem';
@@ -17,6 +18,8 @@ export function createMock() {
   ];
   const tokens = new Map();
   const requests = [];
+  const photos = new Map(); // photoId → { jpegBase64, sessionId, kind, takenAt }
+  let analyze = null; // (photo, session) → analysis | null : giả lập AI đọc ảnh
   let n = 0;
 
   const ok = (data) => ({ ok: true, data });
@@ -51,6 +54,19 @@ export function createMock() {
         return ok({ rev, full: !since, sessions, batches: state.batches, prices: state.prices,
           staffNames: Object.fromEntries(staff.map((s) => [s.id, s.name])), analyses: [], alerts: [], serverTime: new Date().toISOString() });
       }
+      case 'uploadPhoto': {
+        if (!photos.has(data.photoId)) {
+          photos.set(data.photoId, { ...data });
+          const session = state.sessions.get(data.sessionId);
+          const a = analyze && session ? analyze(data, session) : null;
+          if (a && data.kind === 'in') { rev++; state.sessions.set(session.id, { ...applyInAnalysis(session, a), rev }); }
+        }
+        return ok({ driveFileId: `drive-${data.photoId}` });
+      }
+      case 'getPhoto': {
+        const ph = photos.get(data.photoId);
+        return ph ? ok({ jpegBase64: ph.jpegBase64, kind: ph.kind, sessionId: ph.sessionId, takenAt: ph.takenAt }) : fail('PHOTO_NOT_FOUND');
+      }
       case 'createBatch': {
         if (!manager) return fail('FORBIDDEN');
         const from = maxTicketNo(state.batches, data.date) + 1;
@@ -81,6 +97,8 @@ export function createMock() {
     requests,
     sessions: () => [...state.sessions.values()],
     session: (id) => state.sessions.get(id),
+    photos,
+    setAnalyze(fn) { analyze = fn; },
     pushedOps: () => requests.filter((r) => r.action === 'push').flatMap((r) => r.data.ops || []),
     seedBatch(date, fromNo, toNo) { state.batches.push({ date, fromNo, toNo, createdBy: 'st_m', createdAt: new Date().toISOString() }); rev++; },
     seedSession(s) { rev++; state.sessions.set(s.id, { status: 'in_lot', priceAtIn: 5000, vehicleType: 'motorbike', plateStatus: 'pending', ...s, rev }); },

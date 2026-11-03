@@ -100,6 +100,23 @@ function unlockAudio() {
   } catch { /* không hỗ trợ */ }
 }
 
+/** Mỗi ngày một lần: dọn ảnh đã sao lưu > 7 ngày; cảnh báo khi bộ nhớ trình duyệt dùng > 80%. */
+async function housekeeping() {
+  try {
+    const today = ctx.today();
+    if ((await db.getMeta('lastPrune')) !== today) {
+      await db.prunePhotos();
+      await db.setMeta('lastPrune', today);
+    }
+    if (navigator.storage && navigator.storage.estimate) {
+      const { usage = 0, quota = 0 } = await navigator.storage.estimate();
+      const warn = document.getElementById('storage-warn');
+      warn.hidden = !(quota && usage / quota > 0.8);
+      warn.textContent = '⚠ Bộ nhớ máy gần đầy — mở mạng để sao lưu ảnh';
+    }
+  } catch { /* không quan trọng */ }
+}
+
 async function boot() {
   let deviceId = await db.getMeta('deviceId');
   if (!deviceId) { deviceId = `dev_${uuid().slice(0, 8)}`; await db.setMeta('deviceId', deviceId); }
@@ -121,6 +138,7 @@ async function boot() {
   window.addEventListener('local:changed', updateCounters);
   window.addEventListener('sync:pending', (e) => {
     document.getElementById('count-pending').textContent = `Chờ đồng bộ: ${e.detail.count}`;
+    if (e.detail.photos != null) document.getElementById('count-photos').textContent = `Ảnh chờ sao lưu: ${e.detail.photos}`;
   });
   window.addEventListener('sync:status', (e) => {
     const el = document.getElementById('net-status');
@@ -133,6 +151,7 @@ async function boot() {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
   window.__gomay = { db, sync, ctx };
+  housekeeping();
   route();
 }
 

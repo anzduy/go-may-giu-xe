@@ -15,8 +15,12 @@ Tài liệu thiết kế (Spec Kit): [`specs/001-giu-xe-go-may/`](specs/001-giu-
 
 ✅ **Bản MVP** (giai đoạn 1–5 trong `tasks.md`): in phiếu, gửi xe, trả xe, trả xe tạm, xe trong bãi, chi tiết lượt.
 
-⏳ **Chưa có** (bản sau): trả xe mất phiếu (US4), chốt ca/báo cáo (US5), **sao lưu ảnh lên Drive + đọc biển số**
-(US6 — trước khi có, ảnh chỉ nằm trên máy đã chụp), cảnh báo AI màu xe/mũ bảo hiểm (US7).
+✅ **US6 — chạy ngầm**: ảnh lưu trên máy trước rồi tự **sao lưu lên Google Drive** (ảnh lúc ra được ưu tiên);
+máy khác / máy mới **tự tải ảnh từ Drive**; **AI đọc biển số, màu xe, số mũ** ("Xe máy màu đỏ · 2 mũ") hiện ở màn
+hình trả xe; tìm xe theo vài số cuối biển số; sửa tay biển số; dọn ảnh cũ trên máy (chỉ ảnh đã sao lưu > 7 ngày)
+và dọn Drive hằng đêm (ảnh > 30 ngày; dữ liệu > 90 ngày dời sang file lưu trữ).
+
+⏳ **Chưa có** (bản sau): trả xe mất phiếu (US4), chốt ca/báo cáo (US5), cảnh báo AI khi ảnh ra khác ảnh vào (US7).
 
 ## Cài đặt (chủ sân làm một lần)
 
@@ -34,6 +38,22 @@ Tài liệu thiết kế (Spec Kit): [`specs/001-giu-xe-go-may/`](specs/001-giu-
    **Bất kỳ ai**. Bấm Triển khai, chép **URL kết thúc bằng `/exec`**.
 
 > Sửa mã Apps Script về sau: **Triển khai → Quản lý triển khai → sửa → Phiên bản mới** (URL giữ nguyên).
+> Sau khi cập nhật mã mới, chạy lại **`setup`** một lần (an toàn, không mất dữ liệu) để thêm cột mới nếu có.
+
+### 1b. (Tùy chọn) Bật AI đọc biển số, màu xe, số mũ
+
+Không bật thì app vẫn chạy đủ, chỉ không tự đọc biển số. Để bật, trong Apps Script vào **Cài đặt dự án →
+Thuộc tính tập lệnh (Script Properties)** và thêm:
+
+| Thuộc tính | Giá trị |
+|---|---|
+| `VISION_API_KEY` | Khóa API — mặc định **Google Gemini** (lấy miễn phí tại Google AI Studio) |
+| `VISION_PROVIDER` | `gemini` (mặc định, gói miễn phí) hoặc `claude` (Claude Haiku 5.5, trả phí theo lượt) |
+| `VISION_MODEL` | (không bắt buộc) mặc định `gemini-2.5-flash` hoặc `claude-haiku-5-5` |
+
+> Lưu ý: gói miễn phí của Gemini có thể dùng dữ liệu gửi lên để cải thiện dịch vụ (ảnh xe trong bãi). Không muốn
+> vậy thì dùng gói trả phí. AI lỗi hoặc hết lượt miễn phí: gửi/trả xe vẫn bình thường, ảnh được phân tích lại sau
+> (trigger 5 phút).
 
 ### 2. Trang web: GitHub Pages
 
@@ -55,8 +75,8 @@ Hướng dẫn cho nhân viên: [`docs/huong-dan-nhan-vien.md`](docs/huong-dan-n
 
 ```bash
 npm install
-npm test            # 63 unit test: logic phiếu, giá, đồng bộ, Apps Script chạy giả lập
-npm run test:e2e    # 13 test đầu-cuối trên Chromium với camera giả
+npm test            # 98 unit test: logic phiếu, giá, đồng bộ, AI đọc ảnh, Apps Script chạy giả lập
+npm run test:e2e    # 18 test đầu-cuối trên Chromium với camera giả (2 máy, mất mạng, sao lưu ảnh)
 npm run serve       # chạy thử tại http://localhost:5173
 npm run build:gas   # sinh gas/Shared.js từ web/shared/ (chạy sau khi sửa web/shared/)
 ```

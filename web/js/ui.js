@@ -57,7 +57,7 @@ export function uuid() {
 
 /** Ảnh từ Blob → <img>, tự thu hồi URL khi ảnh bị gỡ khỏi trang. */
 export function photoEl(blob, alt, cls = 'photo') {
-  if (!blob) return h('div', { class: 'photo-missing' }, 'Chưa có ảnh trên máy này (ảnh đang ở máy đã chụp, sẽ có khi bật sao lưu ảnh)');
+  if (!blob) return h('div', { class: 'photo-missing' }, 'Chưa xem được ảnh (máy đã chụp chưa sao lưu, đang mất mạng, hoặc ảnh đã quá 30 ngày)');
   const url = URL.createObjectURL(blob);
   const img = h('img', { class: cls, src: url, alt });
   img.addEventListener('load', () => setTimeout(() => URL.revokeObjectURL(url), 60000), { once: true });
@@ -67,4 +67,15 @@ export function photoEl(blob, alt, cls = 'photo') {
     document.body.append(ov);
   });
   return img;
+}
+
+/**
+ * Ảnh theo photoId: hiện ngay nếu có trên máy, không thì "Đang tải ảnh…" rồi tự thay khi tải xong từ cloud.
+ * `load` = db.getPhotoBlob (truyền vào để ui.js không phụ thuộc db.js).
+ */
+export function asyncPhoto(photoId, alt, load, cls = 'photo') {
+  if (!photoId) return photoEl(null, alt, cls);
+  const holder = h('div', { class: 'photo-missing' }, 'Đang tải ảnh…');
+  load(photoId).then((blob) => holder.replaceWith(photoEl(blob, alt, cls))).catch(() => holder.replaceWith(photoEl(null, alt, cls)));
+  return holder;
 }

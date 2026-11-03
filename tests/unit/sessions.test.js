@@ -40,3 +40,16 @@ describe('chuyển trạng thái lượt gửi', () => {
     expect(normalizePlate(' 59x1 123 45 ')).toBe('59X112345');
   });
 });
+
+import { findPlateDuplicate } from '../../web/shared/sessions.js';
+describe('biển số trùng trong bãi', () => {
+  const mk = (id, no, plate, inAt, status = 'in_lot') => ({ id, ticketNo: no, plate, inAt, status, inDeviceId: 'dA' });
+  it('báo khi xe vừa gửi trùng biển với xe khác đang trong bãi', () => {
+    const list = [mk('a', 12, '59X1-123.45', '2026-11-03T08:00:00Z'), mk('b', 30, '59x1 12345', '2026-11-03T10:00:00Z')];
+    expect(findPlateDuplicate(list, 'dA', '2026-11-03T09:55:00Z')).toMatchObject({ session: { id: 'b' }, other: { id: 'a', ticketNo: 12 } });
+  });
+  it('không báo khi xe kia đã trả, hoặc lượt gửi đã cũ', () => {
+    expect(findPlateDuplicate([mk('a', 12, '59X112345', 'x', 'returned'), mk('b', 30, '59X112345', '2026-11-03T10:00:00Z')], 'dA', '2026-11-03T09:55:00Z')).toBeNull();
+    expect(findPlateDuplicate([mk('a', 12, '59X112345', '2026-11-03T08:00:00Z'), mk('b', 30, '59X112345', '2026-11-03T09:00:00Z')], 'dA', '2026-11-03T09:55:00Z')).toBeNull();
+  });
+});

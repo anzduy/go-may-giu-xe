@@ -35,10 +35,18 @@
   mất mạng) → kiểm tra giấy tờ xe → **Trả xe tạm** → ghi chú lý do → app chụp ảnh và tự ghép khi có mạng.
 - **Có 2 xe cùng số** (một xe gửi từ hôm qua): app cho chọn theo **ảnh và ngày**.
 
+## Ảnh và biển số (tự động)
+
+- Ảnh chụp được **lưu trên máy ngay**, rồi app tự **sao lưu lên cloud** khi có mạng (góc trên: "Ảnh chờ sao lưu: N").
+- Máy cổng ra **tự tải ảnh lúc vào** từ cloud ("Đang tải ảnh…" vài giây).
+- App tự đọc **biển số, màu xe, số mũ** — màn hình trả xe hiện kiểu "Xe máy màu đỏ · 2 mũ" để so nhanh.
+  AI có thể đọc sai: luôn **nhìn ảnh** là chính. Biển số sai thì vào chi tiết lượt (mục **Trong bãi** → chạm vào xe) → sửa.
+- Tìm xe khi khách mất phiếu: mục **Trong bãi** → gõ **vài số cuối biển số**.
+
 ## Mất mạng
 
 App **vẫn gửi/trả xe bình thường**. Góc trên hiện "Mất mạng" và "Chờ đồng bộ: N". Có mạng lại, app tự gửi lên —
-**không tắt app, không xóa dữ liệu trình duyệt** khi "Chờ đồng bộ" còn lớn hơn 0.
+**không tắt app, không xóa dữ liệu trình duyệt** khi "Chờ đồng bộ" hoặc "Ảnh chờ sao lưu" còn lớn hơn 0.
 
 ## Cuối ca
 

@@ -1,15 +1,15 @@
 // Service Worker: lưu giao diện để mở được app khi mất mạng.
 // Chỉ xử lý yêu cầu GET cùng tên miền; yêu cầu tới Apps Script đi thẳng ra mạng.
-const CACHE = 'gomay-shell-v0.1.0';
+const CACHE = 'gomay-shell-v0.2.0';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'config.js',
   'css/app.css', 'css/print.css',
   'icons/icon-192.png', 'icons/icon-512.png',
   'vendor/jsQR.js', 'vendor/qrcode-generator.js', 'vendor/idb.js',
-  'js/app.js', 'js/ctx.js', 'js/api.js', 'js/db.js', 'js/sync.js', 'js/camera.js', 'js/scanner.js', 'js/ui.js', 'js/print-layout.js',
+  'js/app.js', 'js/ctx.js', 'js/api.js', 'js/photo-queue.js', 'js/db.js', 'js/sync.js', 'js/camera.js', 'js/scanner.js', 'js/ui.js', 'js/print-layout.js',
   'js/screens/login.js', 'js/screens/checkin.js', 'js/screens/checkout.js', 'js/screens/lot.js',
   'js/screens/session-detail.js', 'js/screens/print.js',
-  'shared/ticket.js', 'shared/pricing.js', 'shared/sessions.js', 'shared/merge.js',
+  'shared/ticket.js', 'shared/pricing.js', 'shared/sessions.js', 'shared/merge.js', 'shared/vision.js',
 ];
 
 self.addEventListener('install', (e) => {
@@ -32,4 +32,11 @@ self.addEventListener('fetch', (e) => {
       return res;
     })),
   );
+});
+
+// Background Sync (Chrome Android): có mạng lại thì đánh thức các trang app đang mở để tải tiếp ảnh.
+// Việc tải ảnh vẫn do trang app làm (cần token đăng nhập trong IndexedDB của trang).
+self.addEventListener('sync', (e) => {
+  if (e.tag !== 'photos') return;
+  e.waitUntil(self.clients.matchAll({ includeUncontrolled: true }).then((cs) => cs.forEach((c) => c.postMessage({ type: 'sync-photos' }))));
 });

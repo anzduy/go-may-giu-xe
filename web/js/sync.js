@@ -3,6 +3,7 @@ import { POLL_MS } from '../config.js';
 import { call } from './api.js';
 import * as db from './db.js';
 import { mergeServerSession } from '../shared/merge.js';
+import { nextPhotoToUpload, retryDelayMs } from './photo-queue.js';
 
 const MAX_BACKOFF = 60000;
 let running = false;
@@ -21,7 +22,41 @@ export function lastSyncError() {
 }
 
 async function emitPending() {
-  emit('sync:pending', { count: await db.outboxCount() });
+  emit('sync:pending', { count: await db.outboxCount(), photos: await db.unsentPhotoCount() });
+}
+
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result).split(',')[1] || '');
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(blob);
+  });
+}
+
+/** Tải ảnh lên cloud, từng ảnh một (ảnh lúc ra trước), trong tối đa `budgetMs`. */
+async function uploadPhotos(budgetMs = 8000) {
+  const t0 = Date.now();
+  while (Date.now() - t0 < budgetMs && navigator.onLine) {
+    const p = nextPhotoToUpload(await db.unsentPhotos(), Date.now());
+    if (!p) return true;
+    await db.putPhoto({ ...p, uploadState: 'uploading', uploadingAt: Date.now() });
+    const r = await call('uploadPhoto', {
+      photoId: p.id, sessionId: p.sessionId, kind: p.kind, takenAt: p.takenAt, jpegBase64: await blobToBase64(p.blob),
+    }, { timeoutMs: 60000 });
+    const fresh = (await db.getPhoto(p.id)) || p;
+    if (r.ok) {
+      await db.putPhoto({ ...fresh, uploadState: 'done', driveFileId: r.data.driveFileId, uploadedAt: new Date().toISOString() });
+    } else {
+      const attempts = (fresh.attempts || 0) + 1;
+      await db.putPhoto({ ...fresh, uploadState: 'failed', attempts, nextAttemptAt: Date.now() + retryDelayMs(attempts), lastError: r.error.code });
+      lastError = r.error;
+      await emitPending();
+      return false;
+    }
+    await emitPending();
+  }
+  return true;
 }
 
 function pendingSessionIds(ops) {
@@ -79,8 +114,10 @@ export async function syncNow() {
   try {
     const okPush = await pushOnce();
     const okPull = okPush && (await pullOnce());
+    // Ảnh chỉ tải sau khi lượt gửi đã lên máy chủ (đẩy thao tác trước).
+    const okPhotos = okPush && (await uploadPhotos());
     backoff = okPush && okPull ? 0 : Math.min(MAX_BACKOFF, backoff ? backoff * 2 : 2000);
-    if (okPush && okPull) lastError = null;
+    if (okPush && okPull && okPhotos) lastError = null;
     emit('sync:status', { online: okPush && okPull, error: lastError });
   } finally {
     busy = false;
@@ -110,6 +147,11 @@ export function start() {
   window.addEventListener('online', () => { backoff = 0; syncNow(); });
   window.addEventListener('offline', () => emit('sync:status', { online: false }));
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') syncNow(); });
+  // Android: Background Sync đánh thức app (đang mở nền) để tải tiếp ảnh khi có mạng lại.
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('message', (e) => { if (e.data && e.data.type === 'sync-photos') syncNow(); });
+    navigator.serviceWorker.ready.then((reg) => reg.sync && reg.sync.register('photos')).catch(() => {});
+  }
   syncNow().then(() => schedule(POLL_MS));
 }
 

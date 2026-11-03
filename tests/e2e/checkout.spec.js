@@ -76,6 +76,7 @@ test('US2: hai lượt cùng số (hôm qua chưa lấy + hôm nay) → chọn t
   mock.seedSession({ id: 't37', ticketDate: today(), ticketNo: 37, inAt: new Date().toISOString(), inStaffId: 'st_a', inPhotoId: 'p-t' });
   await login(page);
   await page.click('#nav a[href="#checkout"]');
+  await page.locator('#typed-no').waitFor();
   await expect.poll(() => page.evaluate(async () => (await window.__gomay.db.allSessions()).length)).toBe(2);
   await typeNo(page, '37');
   await expect(page.locator('#choose-list .item')).toHaveCount(2);
@@ -116,6 +117,7 @@ test('US2 + FR-014: máy cổng vào gửi xe, máy cổng ra thấy trong 5 gi�
 test('US2: trả xe tạm khi máy chưa có dữ liệu phiếu, rồi tự ghép khi lượt gửi đến', async ({ page }) => {
   await login(page, 'Hùng', '5678');
   await page.click('#nav a[href="#checkout"]');
+  await page.locator('#typed-no').waitFor(); // chờ bộ quét bật xong
   await scan(page, encodeQr(today(), 12, SECRET));
   await expect(page.locator('#checkout-msg')).toHaveText('Phiếu này chưa gửi xe nào');
   await page.click('#provisional-btn');

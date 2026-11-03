@@ -3,7 +3,7 @@ import * as db from '../db.js';
 import * as sync from '../sync.js';
 import { start as startCamera, captureJpeg, captureViaInput } from '../camera.js';
 import { startScan } from '../scanner.js';
-import { h, toast, uuid, timeVN, dateVN, photoEl } from '../ui.js';
+import { h, toast, uuid, timeVN, dateVN, asyncPhoto } from '../ui.js';
 import { formatNo, parseTypedNumber, parseQr, validateForCheckout, ticketMessage, maxTicketNo } from '../../shared/ticket.js';
 import { VEHICLE_TYPES, formatMoney } from '../../shared/pricing.js';
 
@@ -105,9 +105,8 @@ export async function render(root, ctx) {
   async function choose(matches) {
     scanning(false);
     const items = await Promise.all(matches.map(async (s) => {
-      const p = await db.getPhoto(s.inPhotoId);
       const btn = h('button', { type: 'button', class: 'item', style: 'width:100%' },
-        p && p.blob ? photoEl(p.blob, 'Ảnh lúc vào') : h('div', { class: 'thumb' }),
+        asyncPhoto(s.inPhotoId, 'Ảnh lúc vào', db.getPhotoBlob),
         h('div', {}, h('div', { class: 'info-line' }, `Phiếu ${formatNo(s.ticketNo)}`),
           h('div', { class: 'muted' }, `Ngày ${dateVN(s.ticketDate)} · vào ${timeVN(s.inAt)}`)));
       btn.addEventListener('click', () => confirm(s));
@@ -121,12 +120,11 @@ export async function render(root, ctx) {
   // ---------- bước 2: xác nhận và trả xe ----------
   async function confirm(session) {
     scanning(false);
-    const photo = await db.getPhoto(session.inPhotoId);
     const staffNames = await db.getMeta('staffNames', {});
     const otherDay = session.ticketDate !== today ? ` · phiếu ngày ${dateVN(session.ticketDate)}` : '';
     view.replaceChildren(
       h('div', { class: 'split' },
-        h('div', {}, h('div', { class: 'ticket-label' }, 'Ảnh lúc vào'), photoEl(photo && photo.blob, 'Ảnh xe lúc vào')),
+        h('div', {}, h('div', { class: 'ticket-label' }, 'Ảnh lúc vào'), asyncPhoto(session.inPhotoId, 'Ảnh xe lúc vào', db.getPhotoBlob)),
         h('div', { class: 'card', id: 'confirm-info' },
           h('div', { class: 'info-line' }, `Phiếu ${formatNo(session.ticketNo)}${session.plate ? ` · ${session.plate}` : ''}`),
           session.inSummary ? h('div', { class: 'warn-text', id: 'in-summary' }, session.inSummary) : null,

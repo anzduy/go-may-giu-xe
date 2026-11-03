@@ -10,6 +10,27 @@ export function normalizePlate(plate) {
   return String(plate || '').toUpperCase().replace(/[^0-9A-Z]/g, '');
 }
 
+/** Biển số để hiển thị: viết hoa, gọn khoảng trắng ("59x1 123.45" → "59X1 123.45"). So sánh dùng normalizePlate. */
+export function displayPlate(plate) {
+  return String(plate || '').toUpperCase().replace(/\s+/g, ' ').trim().slice(0, 20);
+}
+
+/**
+ * Xe vừa gửi (bởi máy này, sau mốc `sinceIso`) có biển số trùng một xe khác đang trong bãi?
+ * Dùng để hiện cảnh báo nhẹ, KHÔNG chặn thao tác.
+ * @returns {{session:object, other:object} | null}
+ */
+export function findPlateDuplicate(sessions, deviceId, sinceIso) {
+  const inLot = sessions.filter((s) => s.status === STATUS.IN_LOT && normalizePlate(s.plate).length >= 6);
+  const recent = inLot.filter((s) => s.inDeviceId === deviceId && String(s.inAt) >= String(sinceIso))
+    .sort((a, b) => String(b.inAt).localeCompare(String(a.inAt)));
+  for (const s of recent) {
+    const other = inLot.find((o) => o.id !== s.id && normalizePlate(o.plate) === normalizePlate(s.plate));
+    if (other) return { session: s, other };
+  }
+  return null;
+}
+
 function hasNote(p) {
   return typeof p.note === 'string' && p.note.trim().length > 0;
 }
@@ -49,7 +70,7 @@ export function applyOp(session, op, ctx = {}) {
       return { session: { ...session, status: STATUS.CANCELLED, note: p.note.trim() } };
     }
     case 'setPlate':
-      return { session: { ...session, plate: normalizePlate(p.plate), plateStatus: PLATE_STATUS.MANUAL } };
+      return { session: { ...session, plate: displayPlate(p.plate), plateStatus: PLATE_STATUS.MANUAL } };
     default:
       return { error: 'BAD_REQUEST' };
   }
