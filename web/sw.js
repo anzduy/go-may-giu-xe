@@ -1,6 +1,6 @@
 // Service Worker: lưu giao diện để mở được app khi mất mạng.
 // Chỉ xử lý yêu cầu GET cùng tên miền; yêu cầu tới Apps Script đi thẳng ra mạng.
-const CACHE = 'gomay-shell-v1.0.0-8e07732ead';
+const CACHE = 'gomay-shell-v1.0.0-6ba8ff1e2f';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'config.js',
   'css/app.css', 'css/print.css',

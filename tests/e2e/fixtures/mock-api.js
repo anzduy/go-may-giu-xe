@@ -65,7 +65,7 @@ export function createMock() {
         const since = Number(data.sinceRev || 0);
         const sessions = [...state.sessions.values()].filter((s) => !since || s.rev > since);
         return ok({ rev, full: !since, sessions, batches: state.batches, prices: state.prices,
-          staffNames: Object.fromEntries(staff.map((s) => [s.id, s.name])), config: { alertThreshold: threshold },
+          staffNames: Object.fromEntries(staff.map((s) => [s.id, s.name])), config: { alertThreshold: threshold, visionEnabled: !!analyze },
           analyses: [...analyses.values()].filter((a) => !since || a.rev > since),
           alerts: state.alerts.filter((a) => !since || a.rev > since), serverTime: new Date().toISOString() });
       }

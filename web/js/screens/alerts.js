@@ -64,8 +64,8 @@ export function alertCard(alert, session, { onDone, onLater } = {}) {
     h('div', { class: 'alert-title' }, `${alert.level === 'high' ? '⛔' : '⚠️'} ${KIND_VN[alert.kind] || 'Cảnh báo'} · ${timeVN(alert.createdAt)}`),
     h('div', { class: 'alert-msg' }, alert.message),
     session ? h('div', { class: 'side-by-side alert-photos' },
-      h('figure', {}, asyncPhoto(session.inPhotoId, 'Lúc vào', db.getPhotoBlob), h('figcaption', {}, 'Lúc vào')),
-      h('figure', {}, asyncPhoto(session.outPhotoId, 'Lúc ra', db.getPhotoBlob), h('figcaption', {}, 'Lúc ra'))) : null,
+      h('figure', {}, asyncPhoto(session.inPhotoId, 'Lúc vào', db.getPhotoResult), h('figcaption', {}, 'Lúc vào')),
+      h('figure', {}, asyncPhoto(session.outPhotoId, 'Lúc ra', db.getPhotoResult), h('figcaption', {}, 'Lúc ra'))) : null,
     h('div', { class: 'muted alert-hint' }, 'AI chỉ gợi ý — xem 2 ảnh, hỏi khách nhẹ nhàng nếu cần.'),
     note,
     h('div', { class: 'alert-actions' }, buttons, onLater ? h('button', { type: 'button', class: 'small ghost', onclick: onLater }, 'Để sau') : null));
@@ -115,7 +115,10 @@ export function initAlerts(ctx) {
 /** Màn hình danh sách cảnh báo còn mở (của mình; quản lý thấy tất cả). */
 export async function render(root, ctx) {
   const list = h('div', { class: 'list', id: 'alert-list' });
-  root.replaceChildren(h('p', { class: 'muted' }, 'Cảnh báo AI khi ảnh lúc ra khác ảnh lúc vào. Chỉ là gợi ý — xem kỹ 2 ảnh.'), list);
+  const aiOff = (await db.getMeta('visionEnabled')) === false;
+  root.replaceChildren(
+    aiOff ? h('div', { class: 'banner warn', id: 'ai-off' }, '⚠ AI đọc ảnh CHƯA BẬT nên app chưa thể cảnh báo khác xe / thiếu mũ. Chủ sân cần thêm VISION_API_KEY trong Apps Script (xem README, mục 1b).') : null,
+    h('p', { class: 'muted' }, 'Cảnh báo AI khi ảnh lúc ra khác ảnh lúc vào. Chỉ là gợi ý — xem kỹ 2 ảnh.'), list);
   async function paint() {
     const open = (await db.allAlerts()).filter((a) => a.status === 'new' && (ctx.isManager() || a.notifyStaffId === ctx.staff.id))
       .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));

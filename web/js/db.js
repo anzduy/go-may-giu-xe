@@ -139,17 +139,26 @@ async function limited(fn) {
  * rồi lưu lại trên máy (FR-024). Trả về Blob hoặc null.
  */
 export async function getPhotoBlob(photoId) {
-  if (!photoId) return null;
+  return (await getPhotoResult(photoId)).blob;
+}
+
+/** Như getPhotoBlob nhưng kèm LÝ DO khi không có ảnh: { blob, error: 'NOT_UPLOADED' | 'OFFLINE' | 'GONE' | mã lỗi }. */
+export async function getPhotoResult(photoId) {
+  if (!photoId) return { blob: null, error: 'NO_PHOTO' };
   const local = await getPhoto(photoId);
-  if (local && local.blob) return local.blob;
+  if (local && local.blob) return { blob: local.blob };
   if (inflight.has(photoId)) return inflight.get(photoId);
   const job = limited(async () => {
     const r = await call('getPhoto', { photoId }, { timeoutMs: 30000 });
-    if (!r.ok) return null;
+    if (!r.ok) {
+      const code = r.error.code;
+      const gone = code === 'PHOTO_NOT_FOUND' && /Drive/.test(r.error.message || '');
+      return { blob: null, error: code === 'OFFLINE' ? 'OFFLINE' : gone ? 'GONE' : code === 'PHOTO_NOT_FOUND' ? 'NOT_UPLOADED' : code, message: r.error.message };
+    }
     const blob = base64ToBlob(r.data.jpegBase64);
     await putPhoto({ ...(local || {}), id: photoId, sessionId: (local && local.sessionId) || r.data.sessionId, kind: (local && local.kind) || r.data.kind,
       takenAt: (local && local.takenAt) || r.data.takenAt, blob, uploadState: 'done', cachedFromCloud: true });
-    return blob;
+    return { blob };
   }).finally(() => inflight.delete(photoId));
   inflight.set(photoId, job);
   return job;

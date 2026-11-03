@@ -60,3 +60,54 @@ export function captureViaInput() {
     input.click();
   });
 }
+
+/**
+ * Camera có chế độ NGHỈ để đỡ nóng máy / hao pin: tắt sau `idleMs` không có thao tác, hoặc khi app chạy nền.
+ * ensure() bật lại (chờ camera ổn định sáng) — nên bấm CHỤP lúc camera đang nghỉ vẫn chụp được (1 chạm).
+ * onState('on' | 'sleep' | 'error', cam) để màn hình hiện/ẩn lớp "Chạm để bật camera".
+ */
+export function managedCamera(video, { idleMs = 60000, onState = () => {} } = {}) {
+  let cam = null;
+  let starting = null;
+  let timer = null;
+  let closed = false;
+  const idle = (typeof window !== 'undefined' && window.__gomayCamIdleMs) || idleMs;
+
+  function bump() {
+    clearTimeout(timer);
+    if (cam) timer = setTimeout(sleep, idle);
+  }
+
+  function sleep() {
+    clearTimeout(timer);
+    if (cam) { cam.stop(); cam = null; onState('sleep'); }
+  }
+
+  async function ensure() {
+    if (closed) return null;
+    if (cam) { bump(); return cam; }
+    if (!starting) {
+      starting = start(video).then(async (c) => {
+        if (closed) { c.stop(); return null; }
+        await new Promise((r) => setTimeout(r, 350)); // chờ camera tự chỉnh sáng rồi mới chụp
+        cam = c;
+        onState('on', c);
+        bump();
+        return c;
+      }).catch((e) => { onState('error', e); return null; }).finally(() => { starting = null; });
+    }
+    return starting;
+  }
+
+  const onVisibility = () => { if (document.visibilityState === 'hidden') sleep(); };
+  document.addEventListener('visibilitychange', onVisibility);
+
+  return {
+    ensure,
+    sleep,
+    bump,
+    get cam() { return cam; },
+    get awake() { return !!cam; },
+    close() { closed = true; sleep(); document.removeEventListener('visibilitychange', onVisibility); },
+  };
+}

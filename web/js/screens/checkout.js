@@ -1,7 +1,7 @@
 // Màn hình TRẢ XE: quét QR hoặc gõ số → xem ảnh lúc vào → bấm "TRẢ XE" (tự chụp ảnh lúc ra).
 import * as db from '../db.js';
 import * as sync from '../sync.js';
-import { start as startCamera, captureJpeg, captureViaInput } from '../camera.js';
+import { managedCamera, captureJpeg, captureViaInput } from '../camera.js';
 import { startScan } from '../scanner.js';
 import { h, toast, uuid, timeVN, dateVN, asyncPhoto } from '../ui.js';
 import { formatNo, parseTypedNumber, parseQr, validateForCheckout, ticketMessage, maxTicketNo } from '../../shared/ticket.js';
@@ -14,16 +14,27 @@ export async function render(root, ctx) {
   let busy = false;
 
   const video = h('video', { id: 'cam', autoplay: true, muted: true, playsinline: true });
-  const camBox = h('div', { class: 'camera' }, video, h('div', { class: 'frame' }, h('span', {}, 'Đưa mã QR trên phiếu vào khung')));
+  const sleepCover = h('button', { type: 'button', class: 'cam-sleep hidden', id: 'cam-sleep' }, '📷 Camera đang nghỉ cho đỡ nóng máy — chạm để bật');
+  const camBox = h('div', { class: 'camera' }, video, sleepCover, h('div', { class: 'frame' }, h('span', {}, 'Đưa mã QR trên phiếu vào khung')));
   const view = h('div', { id: 'checkout-view' });
   const bottom = h('div', { class: 'bottom-bar hidden' });
   root.replaceChildren(view, bottom);
 
-  let closed = false;
-  const camReady = startCamera(video).then((c) => { if (closed) c.stop(); else cam = c; }).catch(() => { cam = null; });
+  // Camera tự nghỉ sau 1 phút không thao tác / khi app chạy nền; chạm màn hình hoặc bấm TRẢ XE là bật lại.
+  let camFailed = false;
+  const camCtl = managedCamera(video, {
+    onState(state, c) {
+      sleepCover.classList.toggle('hidden', state !== 'sleep');
+      cam = state === 'on' ? c : null;
+      if (state === 'error') camFailed = true;
+    },
+  });
+  sleepCover.addEventListener('click', () => camCtl.ensure());
+  root.addEventListener('pointerdown', () => { if (camCtl.awake) camCtl.bump(); });
+  camCtl.ensure();
 
   async function takePhoto() {
-    await camReady;
+    if (!camFailed) await camCtl.ensure();
     if (cam && video.videoWidth) {
       camBox.classList.remove('flash'); void camBox.offsetWidth; camBox.classList.add('flash');
       return captureJpeg(video);
@@ -106,7 +117,7 @@ export async function render(root, ctx) {
     scanning(false);
     const items = await Promise.all(matches.map(async (s) => {
       const btn = h('button', { type: 'button', class: 'item', style: 'width:100%' },
-        asyncPhoto(s.inPhotoId, 'Ảnh lúc vào', db.getPhotoBlob, { zoom: false }),
+        asyncPhoto(s.inPhotoId, 'Ảnh lúc vào', db.getPhotoResult, { zoom: false }),
         h('div', {}, h('div', { class: 'info-line' }, `Phiếu ${formatNo(s.ticketNo)}`),
           h('div', { class: 'muted' }, `Ngày ${dateVN(s.ticketDate)} · vào ${timeVN(s.inAt)}`)));
       btn.addEventListener('click', () => confirm(s));
@@ -124,7 +135,7 @@ export async function render(root, ctx) {
     const otherDay = session.ticketDate !== today ? ` · phiếu ngày ${dateVN(session.ticketDate)}` : '';
     view.replaceChildren(
       h('div', { class: 'split' },
-        h('div', {}, h('div', { class: 'ticket-label' }, 'Ảnh lúc vào'), asyncPhoto(session.inPhotoId, 'Ảnh xe lúc vào', db.getPhotoBlob)),
+        h('div', {}, h('div', { class: 'ticket-label' }, 'Ảnh lúc vào'), asyncPhoto(session.inPhotoId, 'Ảnh xe lúc vào', db.getPhotoResult)),
         h('div', { class: 'card', id: 'confirm-info' },
           h('div', { class: 'info-line' }, `Phiếu ${formatNo(session.ticketNo)}${session.plate ? ` · ${session.plate}` : ''}`),
           session.inSummary ? h('div', { class: 'warn-text', id: 'in-summary' }, session.inSummary) : null,
@@ -204,8 +215,7 @@ export async function render(root, ctx) {
 
   lookup();
   return () => {
-    closed = true;
     if (stopScan) stopScan();
-    if (cam) cam.stop();
+    camCtl.close();
   };
 }

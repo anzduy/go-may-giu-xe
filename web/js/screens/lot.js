@@ -38,7 +38,7 @@ export async function render(root, ctx) {
     count.textContent = `${list.length} xe`;
     grid.replaceChildren(...list.map((s) =>
       h('button', { type: 'button', class: 'tile', 'data-id': s.id, onclick: () => select(s.id) },
-        asyncPhoto(s.inPhotoId, `Phiếu ${formatNo(s.ticketNo)}`, db.getPhotoBlob, { zoom: false }),
+        asyncPhoto(s.inPhotoId, `Phiếu ${formatNo(s.ticketNo)}`, db.getPhotoResult, { zoom: false }),
         h('div', {}, h('b', {}, `Phiếu ${formatNo(s.ticketNo)}`), ` · ${timeVN(s.inAt)}`,
           s.ticketDate !== today ? h('div', { class: 'warn-text' }, `Tồn từ ${dateVN(s.ticketDate)}`) : null,
           s.plate ? h('div', { class: 'muted' }, s.plate) : null))));
@@ -54,7 +54,7 @@ export async function render(root, ctx) {
     panel.replaceChildren(h('div', { class: 'card', id: 'lot-selected' },
       h('div', { class: 'info-line' }, `Phiếu ${formatNo(s.ticketNo)}${s.plate ? ` · ${s.plate}` : ''}`),
       h('div', { class: 'muted' }, `${VEHICLE_TYPES[s.vehicleType] || ''} · vào ${timeVN(s.inAt)} ngày ${dateVN(s.ticketDate)}${s.inSummary ? ` · ${s.inSummary}` : ''}`),
-      asyncPhoto(s.inPhotoId, 'Ảnh lúc vào', db.getPhotoBlob),
+      asyncPhoto(s.inPhotoId, 'Ảnh lúc vào', db.getPhotoResult),
       h('div', { class: 'row', style: 'margin-top:10px' }, lostBtn, reBtn),
       h('div', { class: 'row', style: 'margin-top:8px' }, detailBtn, h('button', { type: 'button', class: 'ghost small', onclick: closePanel }, 'Đóng'))));
     lostBtn.addEventListener('click', () => lostFlow(s));

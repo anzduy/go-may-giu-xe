@@ -165,3 +165,8 @@ label { display: block; margin: 12px 0 6px; color: var(--muted); font-size: 18px
 .alert-float .alert-actions button { min-height: 40px; font-size: 16px; flex: 1 1 22%; }
 .alert-card button:not(.danger):not(.ghost) { background: #e2e8f0; color: #0f172a; }
 .alert-card button { line-height: 1.15; }
+
+/* Camera đang nghỉ (đỡ nóng máy) — chạm để bật */
+.camera .cam-sleep { position: absolute; inset: 0; z-index: 2; width: 100%; border-radius: 0; background: rgba(15, 23, 42, .92);
+  color: #f8fafc; font-size: 20px; font-weight: 700; padding: 16px; white-space: normal; }
+.photo-reason { font-size: 16px; line-height: 1.3; }

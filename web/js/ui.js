@@ -73,9 +73,32 @@ export function photoEl(blob, alt, cls = 'photo', zoom = true) {
  * Ảnh theo photoId: hiện ngay nếu có trên máy, không thì "Đang tải ảnh…" rồi tự thay khi tải xong từ cloud.
  * `load` = db.getPhotoBlob (truyền vào để ui.js không phụ thuộc db.js).
  */
+const PHOTO_REASON = {
+  NOT_UPLOADED: 'Máy chụp ảnh này CHƯA sao lưu ảnh lên (máy đó cần mở app và có mạng). Trên iPhone: Safari và app ở màn hình chính là 2 nơi riêng — hãy dùng cùng một nơi.',
+  OFFLINE: 'Đang mất mạng nên chưa tải được ảnh từ máy chủ.',
+  GONE: 'Ảnh đã quá 30 ngày nên đã được dọn khỏi Drive.',
+  NO_PHOTO: 'Lượt này không có ảnh.',
+};
+
+/**
+ * Ảnh theo photoId: hiện ngay nếu có trên máy; không thì "Đang tải ảnh…" rồi tải từ cloud.
+ * Không xem được thì nói RÕ lý do và có nút "Thử lại".
+ * `load` = db.getPhotoResult (trả { blob, error }) hoặc db.getPhotoBlob (trả Blob).
+ */
 export function asyncPhoto(photoId, alt, load, { cls = 'photo', zoom = true } = {}) {
   if (!photoId) return photoEl(null, alt, cls, zoom);
   const holder = h('div', { class: 'photo-missing' }, 'Đang tải ảnh…');
-  load(photoId).then((blob) => holder.replaceWith(photoEl(blob, alt, cls, zoom))).catch(() => holder.replaceWith(photoEl(null, alt, cls, zoom)));
+  const attempt = () => {
+    holder.replaceChildren('Đang tải ảnh…');
+    Promise.resolve(load(photoId)).then((res) => {
+      const blob = res instanceof Blob ? res : res && res.blob;
+      if (blob) { holder.replaceWith(photoEl(blob, alt, cls, zoom)); return; }
+      const reason = (res && PHOTO_REASON[res.error]) || `Chưa xem được ảnh${res && res.message ? ` (${res.message})` : ''}.`;
+      const retry = h('button', { type: 'button', class: 'small', style: 'margin-top:6px' }, '⟳ Thử lại');
+      retry.addEventListener('click', (e) => { e.stopPropagation(); attempt(); });
+      holder.replaceChildren(h('div', {}, h('div', { class: 'photo-reason' }, reason), retry));
+    }).catch(() => holder.replaceChildren('Chưa xem được ảnh.'));
+  };
+  attempt();
   return holder;
 }

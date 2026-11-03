@@ -189,7 +189,9 @@ async function alertsTab(body, ctx) {
   const period = h('select', { id: 'alert-period' }, h('option', { value: 'week' }, '7 ngày qua'), h('option', { value: 'month' }, 'Tháng này'));
   const stats = h('div', { class: 'muted', id: 'alert-stats' });
   const list = h('div', { class: 'list', id: 'admin-alert-list' });
+  const aiOff = (await db.getMeta('visionEnabled')) === false;
   body.replaceChildren(
+    aiOff ? h('div', { class: 'banner warn', id: 'ai-off' }, '⚠ AI đọc ảnh CHƯA BẬT → chưa có cảnh báo tự động và chưa tự đọc biển số. Bật: Apps Script → ⚙️ Cài đặt dự án → Thuộc tính tập lệnh → thêm VISION_API_KEY (khóa Gemini miễn phí từ aistudio.google.com).') : null,
     h('div', { class: 'card' }, h('b', {}, 'Độ nhạy cảnh báo'), slider, label, save),
     h('div', { class: 'row' }, period), stats, list);
   slider.addEventListener('input', showLabel);

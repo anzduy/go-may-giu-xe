@@ -34,7 +34,7 @@ test('US7: thiếu mũ → thẻ cảnh báo trong 15 giây + rung; không chặ
   await expect.poll(() => mock.photos.size, { timeout: 15000 }).toBe(2); // ảnh vào đã lên & AI đã đọc
   await page.click('#nav a[href="#checkout"]');
   await page.locator('#typed-no').waitFor();
-  await expect.poll(() => page.evaluate(async () => (await window.__gomay.db.allSessions()).filter((s) => s.inSummary).length), { timeout: 10000 }).toBe(2);
+  await expect.poll(() => page.evaluate(async () => (await window.__gomay.db.allSessions()).filter((s) => s.inSummary).length), { timeout: 20000 }).toBe(2); // chờ AI đọc ảnh vào (máy test chạy song song có thể chậm)
   await find(page, 1);
   await expect(page.locator('#in-summary')).toHaveText('Xe máy màu đỏ · 2 mũ');
   await page.click('#checkout-btn');

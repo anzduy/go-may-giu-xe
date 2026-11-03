@@ -2,7 +2,7 @@
 // Không bao giờ chờ mạng: mọi thứ ghi vào máy trước, đồng bộ chạy ngầm.
 import * as db from '../db.js';
 import * as sync from '../sync.js';
-import { start as startCamera, captureJpeg, captureViaInput } from '../camera.js';
+import { managedCamera, captureJpeg, captureViaInput } from '../camera.js';
 import { startScan } from '../scanner.js';
 import { h, toast, uuid } from '../ui.js';
 import {
@@ -42,7 +42,8 @@ export async function render(root, ctx) {
   const camMsg = h('div', { class: 'photo-missing hidden', id: 'cam-msg' });
   const torchBtn = h('button', { type: 'button', class: 'hidden', title: 'Đèn' }, '🔦');
   const scanBtn = h('button', { type: 'button', id: 'scan-btn', title: 'Quét phiếu để lấy số' }, '▦ Quét phiếu');
-  const camBox = h('div', { class: 'camera' }, video,
+  const sleepCover = h('button', { type: 'button', class: 'cam-sleep hidden', id: 'cam-sleep' }, '📷 Camera đang nghỉ cho đỡ nóng máy — chạm để bật');
+  const camBox = h('div', { class: 'camera' }, video, sleepCover,
     h('div', { class: 'frame' }, h('span', {}, 'Biển số + chỗ treo mũ')),
     h('div', { class: 'cam-tools' }, scanBtn, torchBtn));
   const typeBtns = Object.entries(VEHICLE_TYPES).map(([k, name]) =>
@@ -99,24 +100,33 @@ export async function render(root, ctx) {
 
   noTicketBtn.addEventListener('click', () => { noTicket = !noTicket; paint(); });
 
-  // ---------- camera (mở song song; bấm CHỤP sớm thì chờ camera sẵn sàng) ----------
-  let closed = false;
-  const camReady = startCamera(video).then((c) => {
-    if (closed) { c.stop(); return; }
-    cam = c;
-    if (cam.hasTorch) {
-      let on = false;
-      torchBtn.classList.remove('hidden');
-      torchBtn.addEventListener('click', () => { on = !on; cam.setTorch(on); torchBtn.classList.toggle('on', on); });
-    }
-  }).catch(() => {
-    camBox.classList.add('hidden');
-    camMsg.classList.remove('hidden');
-    camMsg.textContent = 'Không mở được camera trong app. Bấm CHỤP để dùng camera của máy (cho phép quyền Camera để nhanh hơn).';
+  // ---------- camera: tự nghỉ sau 1 phút không thao tác / khi app chạy nền; bấm CHỤP vẫn chụp được ----------
+  let torchOn = false;
+  let camFailed = false;
+  const camCtl = managedCamera(video, {
+    onState(state, c) {
+      sleepCover.classList.toggle('hidden', state !== 'sleep');
+      if (state === 'on') {
+        cam = c;
+        torchOn = false;
+        torchBtn.classList.toggle('hidden', !c.hasTorch);
+      } else cam = null;
+      if (state === 'error') {
+        camFailed = true;
+        camBox.classList.add('hidden');
+        camMsg.classList.remove('hidden');
+        camMsg.textContent = 'Không mở được camera trong app. Bấm CHỤP để dùng camera của máy (cho phép quyền Camera để nhanh hơn).';
+      }
+    },
   });
+  torchBtn.addEventListener('click', () => { if (!cam) return; torchOn = !torchOn; cam.setTorch(torchOn); torchBtn.classList.toggle('on', torchOn); });
+  sleepCover.addEventListener('click', () => camCtl.ensure());
+  root.addEventListener('pointerdown', () => { if (camCtl.awake) camCtl.bump(); });
+  camCtl.ensure();
 
   scanBtn.addEventListener('click', () => {
     if (stopScan) { stopScan(); stopScan = null; paint(); return; }
+    camCtl.ensure();
     stopScan = startScan(video, (text) => {
       const r = parseQr(text, ctx.qrSecret);
       if (!r.ok) { toast(ticketMessage('TICKET_INVALID'), { error: true }); return; }
@@ -131,7 +141,7 @@ export async function render(root, ctx) {
 
   // ---------- chụp = gửi xe ----------
   async function takePhoto() {
-    await camReady;
+    if (!camFailed) await camCtl.ensure(); // camera đang nghỉ → bật lại rồi chụp luôn
     if (cam && video.videoWidth) {
       camBox.classList.remove('flash'); void camBox.offsetWidth; camBox.classList.add('flash');
       return captureJpeg(video);
@@ -230,8 +240,7 @@ export async function render(root, ctx) {
   paint();
   return () => {
     window.removeEventListener('sync:changed', onSync);
-    closed = true;
     if (stopScan) stopScan();
-    if (cam) cam.stop();
+    camCtl.close();
   };
 }

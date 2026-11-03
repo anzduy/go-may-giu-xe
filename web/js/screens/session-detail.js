@@ -31,9 +31,10 @@ export async function render(root, ctx) {
     h('div', { class: 'info-line' }, `Phiếu ${formatNo(s.ticketNo)}${s.noTicket ? ' (không phiếu)' : ''}${s.plate ? ` · ${s.plate}` : ''}`),
     h('div', { class: 'muted' }, `${VEHICLE_TYPES[s.vehicleType] || ''} · ${STATUS_VN[s.status] || s.status}${s.fee != null ? ` · Đã thu ${formatMoney(s.fee)}` : ''}`),
     h('div', { class: 'side-by-side', id: 'photo-pair', style: 'margin-top:10px' },
-      h('figure', {}, asyncPhoto(s.inPhotoId, 'Ảnh lúc vào', db.getPhotoBlob), h('figcaption', {}, `Lúc vào ${timeVN(s.inAt)}`)),
-      h('figure', {}, s.outPhotoId ? asyncPhoto(s.outPhotoId, 'Ảnh lúc ra', db.getPhotoBlob) : h('div', { class: 'photo-missing' }, 'Chưa trả xe'),
+      h('figure', {}, asyncPhoto(s.inPhotoId, 'Ảnh lúc vào', db.getPhotoResult), h('figcaption', {}, `Lúc vào ${timeVN(s.inAt)}`)),
+      h('figure', {}, s.outPhotoId ? asyncPhoto(s.outPhotoId, 'Ảnh lúc ra', db.getPhotoResult) : h('div', { class: 'photo-missing' }, 'Chưa trả xe'),
         h('figcaption', {}, s.outAt ? `Lúc ra ${timeVN(s.outAt)}` : ''))),
+    savePhotosRow(s),
     plateEditor(s, ctx),
     await analysisCard(s, ctx),
     s.inSummary ? h('div', { class: 'warn-text', id: 'detail-summary' }, `AI: ${s.inSummary}`) : null,
@@ -111,4 +112,32 @@ async function analysisCard(s, ctx) {
       h('label', {}, 'Màu xe'), color, h('div', { class: 'row' }, h('div', {}, h('label', {}, 'Mũ trên xe'), onV), h('div', {}, h('label', {}, 'Mũ đội'), worn)), save));
   }
   return card;
+}
+
+/**
+ * Lưu ảnh về điện thoại. Ảnh của app nằm TRONG app (không tự vào thư viện ảnh) và được sao lưu ở Google Drive
+ * (GoMay-GiuXe/Anh/ngày). Nút này: điện thoại hỗ trợ thì mở bảng chia sẻ (chọn "Lưu hình ảnh"), không thì tải file.
+ */
+function savePhotosRow(s) {
+  const mk = (photoId, kind) => {
+    if (!photoId) return null;
+    const b = h('button', { type: 'button', class: 'small', 'data-save': kind }, `⬇ Lưu ảnh lúc ${kind === 'in' ? 'vào' : 'ra'}`);
+    b.addEventListener('click', async () => {
+      const r = await db.getPhotoResult(photoId);
+      if (!r.blob) { toast('Chưa có ảnh này trên máy hoặc máy chủ', { error: true }); return; }
+      const name = `GoMay_phieu${formatNo(s.ticketNo)}_${s.ticketDate}_${kind === 'in' ? 'vao' : 'ra'}.jpg`;
+      const file = new File([r.blob], name, { type: 'image/jpeg' });
+      try {
+        if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: name }); return; }
+      } catch (e) { if (e && e.name === 'AbortError') return; }
+      const url = URL.createObjectURL(r.blob);
+      const a = h('a', { href: url, download: name });
+      document.body.append(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+    });
+    return b;
+  };
+  return h('div', { class: 'row', style: 'margin-top:8px' }, mk(s.inPhotoId, 'in'), mk(s.outPhotoId, 'out'));
 }
