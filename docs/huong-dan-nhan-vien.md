@@ -51,6 +51,17 @@ chạm vào xe → **Gán lại số phiếu** → gõ số trên phiếu khách
 - App tự đọc **biển số, màu xe, số mũ** — màn hình trả xe hiện kiểu "Xe máy màu đỏ · 2 mũ" để so nhanh.
   AI có thể đọc sai: luôn **nhìn ảnh** là chính. Biển số sai thì vào chi tiết lượt (mục **Trong bãi** → chạm vào xe) → sửa.
 - Tìm xe khi khách mất phiếu: mục **Trong bãi** → gõ **vài số cuối biển số**.
+- **Ảnh nằm ở đâu?** Ảnh lưu **bên trong app** (không tự vào thư viện ảnh của điện thoại) và được sao lưu ở
+  **Google Drive của chủ sân → thư mục `GoMay-GiuXe/Anh/<ngày>`**. Cần lưu một ảnh về máy: mục **Trong bãi** → chạm xe →
+  **Xem chi tiết** → **⬇ Lưu ảnh lúc vào / lúc ra**.
+- Máy cổng ra báo **"Máy chụp ảnh này CHƯA sao lưu ảnh lên"**: máy cổng vào cần **mở app và có mạng**. Trên iPhone,
+  **Safari và app ở màn hình chính là hai nơi riêng** — luôn mở app từ biểu tượng ở màn hình chính.
+- Thanh trên cùng hiện **"⚠ Sao lưu ảnh lỗi"** → báo chủ sân.
+
+## Camera tự nghỉ
+
+Không ai chạm vào máy **1 phút** (hoặc tắt màn hình, chuyển app khác) thì camera **tự tắt cho đỡ nóng máy, đỡ hao pin**.
+Màn hình hiện "Camera đang nghỉ — chạm để bật". **Cứ bấm CHỤP như bình thường** — app tự bật camera rồi chụp.
 
 ## Cảnh báo AI (thiếu mũ, khác xe)
 
@@ -72,6 +83,9 @@ App **vẫn gửi/trả xe bình thường**. Góc trên hiện "Mất mạng" v
 **không tắt app, không xóa dữ liệu trình duyệt** khi "Chờ đồng bộ" hoặc "Ảnh chờ sao lưu" còn lớn hơn 0.
 
 ## Cuối ca
+
+> Lỡ bấm **Thoát** khi chưa chốt ca: **không mất số liệu**. Đăng nhập lại **bằng đúng tên của mình** trên máy đó là thấy
+> tiếp tiền của ca. Người khác đăng nhập vào máy đó thì bắt đầu ca mới của họ.
 
 1. Mục **Chốt ca** → xem **Tiền cần nộp** (tiền các xe mình đã trả trong ca) và số xe còn trong bãi.
 2. Đếm tiền mặt cho khớp → bấm **CHỐT CA** → nộp tiền cho chủ sân.

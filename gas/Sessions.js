@@ -76,7 +76,7 @@ function pull(d) {
     batches: readObjects('TicketBatches').map(strip_).filter(function (b) { return days.indexOf(b.date) >= 0 || b.date > days[0]; }),
     prices: readObjects('Prices').map(strip_),
     staffNames: staffNames_(),
-    config: { alertThreshold: Number(getConfig('alertThreshold', DEFAULT_THRESHOLD)) || DEFAULT_THRESHOLD },
+    config: { alertThreshold: Number(getConfig('alertThreshold', DEFAULT_THRESHOLD)) || DEFAULT_THRESHOLD, visionEnabled: visionConfigured_() },
     analyses: readObjects('Photos').map(strip_).filter(function (p) {
       return p.analysisStatus && ['done', 'unclear', 'manual'].indexOf(p.analysisStatus) >= 0
         && (full ? days.indexOf(dateKey(p.takenAt)) >= 0 : Number(p.rev) > sinceRev);

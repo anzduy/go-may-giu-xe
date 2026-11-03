@@ -50,7 +50,7 @@ export async function render(root, ctx) {
     lastBox,
     inLot.length ? h('div', {}, h('b', {}, `Xe còn trong bãi (${inLot.length})`),
       h('div', { class: 'grid', style: 'margin-top:8px' }, inLot.map((s) =>
-        h('div', { class: 'tile' }, asyncPhoto(s.inPhotoId, `Phiếu ${formatNo(s.ticketNo)}`, db.getPhotoBlob, { zoom: false }),
+        h('div', { class: 'tile' }, asyncPhoto(s.inPhotoId, `Phiếu ${formatNo(s.ticketNo)}`, db.getPhotoResult, { zoom: false }),
           h('div', {}, `Phiếu ${formatNo(s.ticketNo)} · ${timeVN(s.inAt)}`))))) : null,
     h('div', { class: 'bottom-bar' }, closeBtn),
   );

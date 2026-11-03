@@ -47,7 +47,9 @@ async function uploadPhotos(budgetMs = 8000) {
     const fresh = (await db.getPhoto(p.id)) || p;
     if (r.ok) {
       await db.putPhoto({ ...fresh, uploadState: 'done', driveFileId: r.data.driveFileId, uploadedAt: new Date().toISOString() });
+      emit('sync:photoError', null);
     } else {
+      if (r.error.code !== 'OFFLINE') emit('sync:photoError', r.error);
       const attempts = (fresh.attempts || 0) + 1;
       await db.putPhoto({ ...fresh, uploadState: 'failed', attempts, nextAttemptAt: Date.now() + retryDelayMs(attempts), lastError: r.error.code });
       lastError = r.error;
@@ -104,6 +106,7 @@ async function pullOnce() {
   await db.setMeta('prices', d.prices || []);
   if (d.staffNames) await db.setMeta('staffNames', d.staffNames);
   if (d.config && d.config.alertThreshold) await db.setMeta('alertThreshold', d.config.alertThreshold);
+  if (d.config && typeof d.config.visionEnabled === 'boolean') await db.setMeta('visionEnabled', d.config.visionEnabled);
   if (d.analyses && d.analyses.length) await db.putAnalyses(d.analyses);
   if (d.alerts && d.alerts.length) {
     await db.putAlerts(d.alerts);

@@ -86,7 +86,11 @@ async function onLogin({ token, staff, qrSecret, serverTime }) {
   await db.setMeta('qrSecret', ctx.qrSecret);
   await db.setMeta('clockOffset', ctx.clockOffset);
   await db.setMeta('lastRev', 0); // lấy lại đủ dữ liệu sau khi đăng nhập
-  await db.setMeta('shiftStart', ctx.nowIso()); // mỗi lần đăng nhập là bắt đầu ca mới
+  // Ca làm việc: cùng nhân viên đăng nhập lại (lỡ thoát) thì GIỮ ca đang mở; người khác đăng nhập thì bắt đầu ca mới.
+  if ((await db.getMeta('shiftStaffId')) !== staff.id || !(await db.getMeta('shiftStart'))) {
+    await db.setMeta('shiftStart', ctx.nowIso());
+    await db.setMeta('shiftStaffId', staff.id);
+  }
   sync.start();
   const last = await db.getMeta('lastMode', 'checkin');
   if (location.hash.slice(1).split('?')[0] === last) route(); else location.hash = `#${last}`;
@@ -95,6 +99,10 @@ async function onLogin({ token, staff, qrSecret, serverTime }) {
 async function logout() {
   const pending = await db.outboxCount();
   if (pending && !confirm(`Còn ${pending} thao tác chưa gửi lên máy chủ. Vẫn thoát? (dữ liệu vẫn giữ trên máy, đăng nhập lại sẽ gửi tiếp)`)) return;
+  const start = await db.getMeta('shiftStart');
+  const mine = start && (await db.allSessions()).some((s) => (s.inStaffId === ctx.staff.id && String(s.inAt) >= start)
+    || (s.outStaffId === ctx.staff.id && String(s.outAt) >= start));
+  if (mine && !confirm('Bạn CHƯA CHỐT CA. Vẫn thoát? (số liệu ca vẫn được giữ — đăng nhập lại bằng tên của bạn sẽ thấy tiếp)')) return;
   sync.stop();
   ctx.staff = null;
   setAuth({ token: null });
@@ -151,6 +159,11 @@ async function boot() {
   window.addEventListener('sync:pending', (e) => {
     document.getElementById('count-pending').textContent = `Chờ đồng bộ: ${e.detail.count}`;
     if (e.detail.photos != null) document.getElementById('count-photos').textContent = `Ảnh chờ sao lưu: ${e.detail.photos}`;
+  });
+  window.addEventListener('sync:photoError', (e) => {
+    const el = document.getElementById('photo-error');
+    el.hidden = !e.detail;
+    el.textContent = e.detail ? `⚠ Sao lưu ảnh lỗi: ${e.detail.message || e.detail.code} — báo chủ sân` : '';
   });
   window.addEventListener('sync:status', (e) => {
     const el = document.getElementById('net-status');
