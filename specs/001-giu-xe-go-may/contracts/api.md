@@ -58,10 +58,14 @@ Mỗi thao tác được ghi vào `Audit`. Gửi lại cùng `opId` → `duplica
 
 **→ data**: `{ "rev": 1240, "sessions": [ ... ], "analyses": [ ... ], "alerts": [ ... ], "prices": { ... }, "batches": [ ... ], "full": false }`
 
-- `alerts` chỉ gồm cảnh báo `new`; máy rung/kêu khi nhận cảnh báo mới có `notifyStaffId` = mình.
+- `alerts` gồm mọi cảnh báo **thay đổi** kể từ `sinceRev` (mới tạo hoặc vừa được đóng), để cảnh báo đã
+  đóng trên máy này cũng biến mất trên máy khác; máy báo động (âm báo + rung hoặc nháy đỏ) khi nhận
+  cảnh báo `new` có `notifyStaffId` = mình.
+- `createSession` có số vượt quá bộ phiếu hiện có vẫn được nhận (máy offline có thể chưa biết bộ phiếu
+  mới); nếu khi xử lý vẫn vượt mọi bộ phiếu của ngày đó → `conflict: "out_of_range"` cho quản lý xem.
 
 - Lần đầu (`sinceRev = 0`) hoặc quá cũ: trả `full: true` gồm **tất cả lượt `in_lot`** + lượt của hôm nay.
-- Máy gọi mỗi 4 giây khi app đang mở và có mạng.
+- Máy gọi mỗi 3 giây khi app đang mở và có mạng; ngoài ra gọi `push` **ngay** khi có thao tác mới.
 
 ## 4. `uploadPhoto` 🟢
 
@@ -85,7 +89,8 @@ Mỗi thao tác được ghi vào `Audit`. Gửi lại cùng `opId` → `duplica
 
 **→ data**: `{ "date", "fromNo", "toNo", "tickets": [ { "no", "qr" } ] }`
 
-`qr` = `GM1|<date>|<no 3 chữ số>|<ck>`, `ck` = 6 ký tự đầu (hex) của HMAC-SHA256(`qrSecret`, `<date>|<no>`).
+`qr` = `GM1|<date>|<no 3 chữ số>|<ck>`, `ck` = 6 ký tự đầu (hex, chữ thường) của HMAC-SHA256(`qrSecret`, `<date>|<no 3 chữ số>`), ví dụ chuỗi
+ký `20261103|037`.
 
 ## 7. `report` 🔴
 

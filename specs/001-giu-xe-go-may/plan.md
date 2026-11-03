@@ -64,6 +64,8 @@ phí ~0đ/tháng (gói miễn phí Google + GitHub + Gemini); ảnh nén ~100–
 **Re-check sau Phase 1 (thiết kế)**: data model không có thao tác xóa; API `push` idempotent theo
 `opId`; `uploadPhoto` tách khỏi luồng gửi/trả. Không có vi phạm → bỏ trống Complexity Tracking.
 
+**Cập nhật sau `/speckit-analyze` (2026-11-03)**: sửa lỗi C1 (số vượt bộ phiếu chỉ cảnh báo khi offline — Nguyên tắc II) và H3 (logic xử lý đồng bộ đưa vào `web/shared/server-ops.js` để Apps Script và test dùng chung — mục Quy trình phát triển). Constitution Check vẫn đạt.
+
 ## Project Structure
 
 ### Documentation (this feature)
@@ -91,12 +93,14 @@ web/                         # Trang PWA — host GitHub Pages
 ├── sw.js                    # Service Worker: cache giao diện, chạy offline
 ├── config.js                # URL Apps Script
 ├── css/app.css              # Chữ to, nút to, dùng một tay
+├── css/print.css            # Trang in A4 phiếu QR
 ├── js/
 │   ├── app.js               # Khởi động, đăng nhập, điều hướng
 │   ├── screens/
 │   │   ├── checkin.js       # Gửi xe: số đề xuất + camera + chụp
 │   │   ├── checkout.js      # Trả xe: quét/gõ số, ảnh vào, tự chụp ảnh ra
 │   │   ├── lot.js           # Xe trong bãi (lưới ảnh), mất phiếu
+│   │   ├── session-detail.js # Chi tiết lượt: ảnh vào/ra cạnh nhau, sửa biển số/phân tích
 │   │   ├── shift.js         # Chốt ca
 │   │   ├── print.js         # Tạo + in phiếu A4 (quản lý)
 │   │   ├── alerts.js        # Thẻ cảnh báo (rung, âm báo, 2 ảnh), danh sách cảnh báo
@@ -110,6 +114,8 @@ web/                         # Trang PWA — host GitHub Pages
 │   ├── ticket.js            # Nhảy số, kiểm tra số, mã QR + mã kiểm tra
 │   ├── pricing.js           # Tính tiền theo giá lúc gửi, phí mất phiếu
 │   ├── sessions.js          # Chuyển trạng thái, quy tắc hợp lệ
+│   ├── merge.js             # Gộp dữ liệu máy chủ vào bản trên máy
+│   ├── server-ops.js        # Xử lý thao tác push (dùng chung Apps Script + máy chủ giả trong test)
 │   ├── report.js            # Tổng hợp chốt ca / báo cáo
 │   └── compare.js           # So sánh phân tích ảnh vào/ra → cảnh báo
 └── vendor/                  # jsqr.js, qrcode-generator.js, idb.js
@@ -117,6 +123,8 @@ web/                         # Trang PWA — host GitHub Pages
 gas/                         # Google Apps Script (đẩy bằng clasp)
 ├── appsscript.json
 ├── Main.js                  # doPost: định tuyến action, kiểm tra token/quyền
+├── Db.js                    # Đọc/ghi Sheets, khóa ngắn, bộ đếm rev, nhật ký
+├── Auth.js                  # Đăng nhập PIN, token, nhân viên
 ├── Setup.js                 # setup(): tạo sheet, thư mục, quản lý đầu tiên, trigger
 ├── Sessions.js              # push ops, pull theo rev, LockService
 ├── Photos.js                # uploadPhoto/getPhoto, lưu Drive
@@ -126,8 +134,11 @@ gas/                         # Google Apps Script (đẩy bằng clasp)
 ├── Cleanup.js               # Trigger hằng đêm: xóa ảnh > 30 ngày, lưu trữ > 90 ngày
 └── Shared.js                # Bản sao của web/shared/* (tạo bằng script build nhỏ)
 
+scripts/                     # serve.mjs, build-gas.mjs, eval-vision.mjs
+
 tests/
-├── unit/                    # Vitest cho web/shared/*
+├── fixtures/vision/         # ~50 ảnh thật + đáp án để đo độ chính xác AI
+├── unit/                    # Vitest cho web/shared/* (gồm server-ops)
 └── e2e/                     # Playwright: checkin, checkout, offline-sync, lost-ticket, alerts
 
 package.json                 # Vitest, Playwright, clasp, script copy shared → gas

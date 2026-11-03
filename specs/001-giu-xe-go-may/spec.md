@@ -198,7 +198,7 @@ hiểm** (treo/để trên xe và đội trên đầu người trong ảnh), và
 - **Lúc trả xe**: màn hình trả xe hiện sẵn tóm tắt từ ảnh lúc vào, ví dụ **"Xe máy màu đỏ · 2 mũ"**,
   để nhân viên liếc so nhanh (không thêm thao tác).
 - **Sau khi trả xe**: app phân tích ảnh lúc ra và **so với ảnh lúc vào**. Nếu **khác màu xe**, **khác
-  biển số**, hoặc **ít mũ hơn**, app hiện **cảnh báo** trên máy nhân viên (rung + âm báo + thẻ đỏ, ví dụ
+  biển số**, hoặc **ít mũ hơn**, app hiện **cảnh báo** trên máy nhân viên (rung hoặc nháy đỏ + âm báo + thẻ đỏ, ví dụ
   "⚠️ Phiếu 037: lúc vào 2 mũ, lúc ra 1 mũ") và ghi vào danh sách **Cảnh báo** để quản lý xem lại.
 
 **Why this priority**: Giúp phát hiện sớm giao nhầm xe và mất mũ bảo hiểm, ngay khi khách có thể còn
@@ -266,8 +266,9 @@ xe xanh → cảnh báo "khác màu xe". Gửi và trả cùng một xe không �
   được xếp hàng và phân tích lại sau.
 - Khiếu nại mất mũ bảo hiểm: quản lý tìm lượt theo số phiếu, biển số hoặc giờ, xem cặp ảnh vào/ra.
   App chỉ cung cấp bằng chứng, việc xử lý bồi thường do chủ sân quyết định.
-- Ảnh chụp mờ hoặc tối (buổi tối): app cho chụp lại ngay trên màn hình xem trước. Đèn flash bật
-  được bằng một chạm.
+- Ảnh chụp mờ hoặc tối (buổi tối): trong 10 giây sau khi chụp, thanh "Hoàn tác" có thêm nút **"Chụp
+  lại"** để thay ảnh mà giữ nguyên số phiếu (không có bước xem trước, giữ gửi xe 1 chạm). Đèn flash
+  bật được bằng một chạm.
 - Điện thoại hết pin giữa ca: nhân viên đăng nhập trên máy khác và thấy đủ xe trong bãi (với dữ
   liệu đã đồng bộ).
 - Sửa giá giữa ngày: lượt đang trong bãi tính theo giá tại thời điểm gửi.
@@ -298,7 +299,9 @@ xe xanh → cảnh báo "khác màu xe". Gửi và trả cùng một xe không �
 - **FR-007**: Nhân viên MUST sửa được số phiếu bằng cách chạm vào ô số (bàn phím số) hoặc quét QR
   trên phiếu. Sau khi lưu với số đã sửa N, số đề xuất tiếp theo MUST là N + 1.
 - **FR-008**: System MUST chặn ngay khi số đang chọn trùng với phiếu đang có xe trong bãi, phiếu đã
-  trả, phiếu báo mất, hoặc vượt quá số phiếu đã tạo trong ngày, kèm thông báo rõ lý do. Khi số đề
+  trả, hoặc phiếu báo mất, kèm thông báo rõ lý do. Số **vượt quá** số phiếu đã tạo trong ngày (theo dữ
+  liệu máy đang có) chỉ **cảnh báo, không chặn**, vì máy đang offline có thể chưa biết bộ phiếu vừa tạo
+  thêm; máy chủ kiểm tra lại khi đồng bộ và đánh dấu cho quản lý nếu thật sự sai. Khi số đề
   xuất bị trùng (ví dụ máy khác đã dùng), app MUST tự nhảy tới số trống kế tiếp.
 - **FR-008a**: Lượt gửi MUST có ít nhất một ảnh xe. Loại xe (xe máy, xe điện, xe đạp) mặc định
   "Xe máy", đổi bằng một chạm. Biển số **không bắt buộc**.
@@ -333,7 +336,7 @@ xe xanh → cảnh báo "khác màu xe". Gửi và trả cùng một xe không �
 
 - **FR-020**: Mọi ảnh MUST được lưu ngay trên điện thoại trước; thao tác gửi/trả xe MUST hoàn tất mà
   không chờ tải ảnh lên hay đọc biển số.
-- **FR-021**: System MUST tự đọc biển số từ ảnh xe lúc vào ở chế độ chạy ngầm và gắn kết quả vào lượt
+- **FR-021** *(là một phần của phân tích ảnh FR-026)*: System MUST tự đọc biển số từ ảnh xe lúc vào ở chế độ chạy ngầm và gắn kết quả vào lượt
   gửi. Không đọc được thì để trống, không báo lỗi; nhân viên và quản lý sửa tay được biển số.
 - **FR-022**: Biển số đọc được MUST dùng được để tìm xe (theo một phần biển số) và để cảnh báo nhẹ khi
   trùng với xe đang trong bãi (không chặn thao tác).
@@ -355,8 +358,9 @@ xe xanh → cảnh báo "khác màu xe". Gửi và trả cùng một xe không �
   (a) khác màu xe hoặc khác biển số đọc được → mức **cao** (có thể giao nhầm xe);
   (b) tổng số mũ lúc ra (trên xe + trên đầu) **ít hơn** lúc vào → mức **trung bình** (có thể mất mũ).
   Chỉ cảnh báo khi cả hai kết quả đủ chắc chắn; nhiều mũ hơn lúc vào thì không cảnh báo.
-- **FR-029**: Cảnh báo MUST hiện trên máy của nhân viên vừa trả xe (rung, âm báo, thẻ đỏ kèm 2 ảnh
-  cạnh nhau) trong vòng **15 giây** sau khi trả xe khi có mạng, và hiện trong danh sách **Cảnh báo** của
+- **FR-029**: Cảnh báo MUST hiện trên máy của nhân viên vừa trả xe (âm báo, thẻ đỏ kèm 2 ảnh
+  cạnh nhau, và **rung trên máy hỗ trợ**; máy không rung được — như iPhone — thì **nháy đỏ toàn màn
+  hình**) trong vòng **15 giây** sau khi trả xe khi có mạng, và hiện trong danh sách **Cảnh báo** của
   quản lý. Cảnh báo MUST KHÔNG chặn hay làm chậm lượt trả xe tiếp theo.
 - **FR-030**: Nhân viên hoặc quản lý MUST đóng được cảnh báo bằng một kết quả ("đúng xe / khách đội mũ",
   "báo sai", "có vấn đề thật") kèm ghi chú tùy chọn; thao tác được lưu vết. Báo cáo chốt ca MUST hiện số
@@ -370,7 +374,8 @@ xe xanh → cảnh báo "khác màu xe". Gửi và trả cùng một xe không �
 - **FR-014**: System MUST cho 2–3 điện thoại dùng cùng lúc (ví dụ một máy ở cổng vào, một máy ở
   cổng ra). Khi có mạng, xe gửi ở máy này MUST hiện ở máy kia trong vòng 5 giây, kèm ảnh.
 - **FR-015**: System MUST hiển thị trên màn hình chính: số xe đang trong bãi và số phiếu còn lại
-  chưa dùng của hôm nay. Cảnh báo khi còn dưới 20 phiếu.
+  của hôm nay, tính bằng **số lớn nhất đã tạo trong ngày − số lớn nhất đã dùng trong ngày** (trên dữ
+  liệu của mọi máy đã đồng bộ; số bị bỏ qua không được tính là còn). Cảnh báo khi còn dưới 20 phiếu.
 - **FR-016**: System MUST lưu vết mọi thao tác (gửi, trả, mất phiếu, trả tạm, hủy) kèm nhân viên và
   thời gian. Không cho xóa lượt, chỉ quản lý được hủy lượt kèm lý do.
 - **FR-017**: System MUST tạo báo cáo chốt ca gồm: số lượt, tổng tiền theo loại xe, lượt mất phiếu,

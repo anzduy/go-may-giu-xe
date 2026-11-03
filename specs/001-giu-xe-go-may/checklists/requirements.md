@@ -45,3 +45,7 @@
   trước, đọc biển số và sao lưu cloud chạy ngầm (FR-020 → FR-025, SC-008 → SC-011). Checklist vẫn đạt.
 - 2026-11-03 (sửa đổi 4): Thêm User Story 7 — AI phân tích ngầm màu xe, số mũ bảo hiểm (trên xe + trên
   đầu), so sánh vào/ra và cảnh báo khi không khớp (FR-026 → FR-031, SC-012 → SC-014). Checklist vẫn đạt.
+- 2026-11-03 (sau `/speckit-analyze`): sửa C1 (số vượt bộ phiếu chỉ cảnh báo khi offline), H1 (push ngay +
+  pull 3 giây để đồng bộ ≤ 5 giây), H2 (iPhone không rung → nháy đỏ toàn màn hình), H3 (logic đồng bộ
+  dùng chung `web/shared/server-ops.js`), M1–M9 và L1–L6. Thêm 3 việc (server-ops, lấy ảnh từ cloud, bộ
+  ảnh đo độ chính xác AI) → tasks.md có 81 việc. Constitution 1.3.1 (chỉ đổi thuật ngữ).

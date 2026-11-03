@@ -1,6 +1,6 @@
 <!--
 Sync Impact Report
-- Version change: (template) → 1.0.0 → 1.1.0 → 1.2.0 → 1.3.0
+- Version change: (template) → 1.0.0 → 1.1.0 → 1.2.0 → 1.3.0 → 1.3.1
 - Modified principles: n/a (initial adoption)
 - Added sections: Core Principles I–V, Ràng buộc vận hành, Quy trình phát triển, Governance
 - Removed sections: none
@@ -9,6 +9,7 @@ Sync Impact Report
   thay cho biển số.
 - 1.3.0: Nguyên tắc II thêm "lưu máy trước, đẩy cloud sau, không chờ xử lý nền"; Nguyên tắc III
   thêm ảnh xe lúc ra.
+- 1.3.1: Thống nhất thuật ngữ "phiếu" thay cho "vé" (không đổi ý nghĩa).
 - Follow-up TODOs: none
 -->
 
@@ -38,10 +39,10 @@ cùng lúc; chậm ở cổng là kẹt xe và mất khách.
 
 ### III. Không mất xe, không nhầm xe (Ticket Integrity — NON-NEGOTIABLE)
 
-- Mỗi lượt gửi MUST có một mã vé duy nhất, chưa từng dùng cho xe khác đang trong bãi.
+- Mỗi lượt gửi MUST có một số phiếu duy nhất, chưa từng dùng cho xe khác đang trong bãi.
 - Mỗi lượt gửi MUST có ảnh chụp xe lúc vào; trả xe MUST hiện ảnh đó để nhân viên đối chiếu và MUST
   lưu ảnh xe lúc ra làm bằng chứng khi có khiếu nại mất đồ.
-- Trường hợp mất vé MUST đi qua quy trình riêng có ghi lại lý do và người xử lý.
+- Trường hợp mất phiếu MUST đi qua quy trình riêng có ghi lại lý do và người xử lý.
 
 **Lý do**: Mất xe hoặc giao nhầm xe là thiệt hại tiền bạc và uy tín lớn nhất của bãi giữ xe.
 
@@ -68,7 +69,7 @@ cần số liệu tin được để đối chiếu với tiền mặt nhân vi�
   cứng đặc biệt ở cổng; phiếu QR được in sẵn mỗi ngày bằng máy in văn phòng có sẵn của chủ sân.
 - Chi phí vận hành hàng tháng SHOULD ở mức 0 đồng hoặc rất thấp (dùng dịch vụ miễn phí khi có thể).
 - Dữ liệu lượt gửi xe MUST được giữ tối thiểu 90 ngày để đối chiếu khiếu nại.
-- Chỉ chủ sân (quản lý) được xem báo cáo doanh thu tổng và chỉnh cài đặt giá vé.
+- Chỉ chủ sân (quản lý) được xem báo cáo doanh thu tổng và chỉnh cài đặt giá giữ xe.
 
 ## Quy trình phát triển
 
@@ -86,4 +87,4 @@ cần số liệu tin được để đối chiếu với tiền mặt nhân vi�
 - Bước `/speckit-plan` và `/speckit-analyze` MUST kiểm tra tuân thủ constitution; vi phạm phải
   được giải trình trong mục Complexity Tracking.
 
-**Version**: 1.3.0 | **Ratified**: 2026-11-03 | **Last Amended**: 2026-11-03
+**Version**: 1.3.1 | **Ratified**: 2026-11-03 | **Last Amended**: 2026-11-03

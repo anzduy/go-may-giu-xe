@@ -74,12 +74,19 @@ không cần preflight CORS) — cách làm phổ biến và ổn định với 
 
 ## R4. Đồng bộ 2–3 máy trong 5 giây
 
-**Decision**: Mỗi máy hỏi máy chủ "có gì mới từ lần trước?" (`pull` theo số phiên bản tăng dần) mỗi
-4 giây khi app đang mở và có mạng. Máy chủ giữ một bộ đếm phiên bản; mỗi thay đổi tăng bộ đếm.
+**Decision**: (1) Có thao tác mới (gửi/trả xe...) thì máy **đẩy lên ngay** (`push`, gom trong 300 ms),
+không chờ vòng định kỳ; (2) mỗi máy hỏi máy chủ "có gì mới từ lần trước?" (`pull` theo số phiên bản
+tăng dần) mỗi **3 giây** khi app đang mở và có mạng. Máy chủ giữ một bộ đếm phiên bản; mỗi thay đổi tăng bộ đếm.
 Ghi dữ liệu dùng `LockService` để 2 máy ghi cùng lúc không đè nhau.
 
-**Rationale**: Apps Script không có kết nối realtime; hỏi định kỳ 4 giây × 3 máy ≈ 45 lần/phút, nằm
-trong giới hạn của Apps Script (tối đa 30 lượt chạy đồng thời, mỗi lượt vài trăm ms). Đáp ứng FR-014.
+**Rationale**: Apps Script không có kết nối realtime. Thời gian xe gửi ở máy A hiện ở máy B ≈ gửi
+lên ngay (~1–2 s) + chờ lượt `pull` kế tiếp của máy B (≤ 3 s) ≈ **dưới 5 giây** (FR-014). (Bản trước
+đẩy lên theo vòng 4 giây nên trường hợp xấu ~8 giây — đã sửa sau `/speckit-analyze`.) Tải: 3 máy × 20
+lần/phút + các lần `push` ≈ 70 lượt gọi/phút giờ cao điểm, mỗi lượt vài trăm ms, nằm trong giới hạn
+Apps Script (tối đa 30 lượt chạy đồng thời).
+
+**Khóa dữ liệu**: chỉ giữ `LockService` trong lúc đọc/ghi Sheets (vài trăm ms). **Không bao giờ** gọi
+dịch vụ AI hay ghi file Drive trong lúc giữ khóa, để các máy khác không bị chờ hoặc báo `BUSY`.
 
 **Xung đột số phiếu** (2 máy cùng dùng số 037 khi offline): máy chủ giữ lượt đến trước, lượt sau bị
 đánh dấu `conflict` để quản lý gán lại số (FR-012a). Khi online, máy kiểm tra số trùng ngay trên dữ
@@ -124,8 +131,12 @@ Với ảnh lúc ra, máy chủ so với kết quả ảnh lúc vào bằng lu�
   cảnh báo **trung bình**.
 - Ngưỡng mặc định 0,7, quản lý chỉnh được để giảm báo sai (SC-014).
 
-Máy nhân viên nhận cảnh báo qua vòng `pull` 4 giây → tổng thời gian ≈ tải ảnh (2–4s) + AI (2–5s) +
-pull (≤ 4s) ≈ **dưới 15 giây** (SC-012).
+Máy nhân viên nhận cảnh báo qua vòng `pull` 3 giây → tổng thời gian ≈ tải ảnh (2–4s) + AI (2–5s) +
+pull (≤ 3s) ≈ **dưới 15 giây** (SC-012). Để giữ được mức này giờ cao điểm, hàng đợi tải ảnh **ưu tiên
+ảnh lúc ra** trước ảnh lúc vào.
+
+**Đo độ chính xác**: trước khi dùng thật, gom ~50 ảnh thật ở bãi (ngày/đêm, có/không mũ, nhiều màu) kèm
+đáp án đúng, chạy script đánh giá để đo SC-009, SC-013, SC-014 và chỉnh câu lệnh gửi AI cùng ngưỡng.
 
 Nhà cung cấp AI cấu hình được trong Script Properties:
 
