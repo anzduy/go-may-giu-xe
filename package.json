@@ -1,0 +1,21 @@
+{
+  "name": "go-may-giu-xe",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "App giữ xe sân bóng Gò Mây Arena",
+  "scripts": {
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "serve": "node scripts/serve.mjs",
+    "build:gas": "node scripts/build-gas.mjs",
+    "bump:sw": "node scripts/bump-sw.mjs",
+    "push:gas": "npm run build:gas && clasp push"
+  },
+  "devDependencies": {
+    "@anthropic-ai/sdk": "0.135.0",
+    "@google/clasp": "2.4.2",
+    "@playwright/test": "1.63.0",
+    "vitest": "3.2.4"
+  }
+}

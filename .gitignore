@@ -1,0 +1,12 @@
+node_modules/
+.clasp.json
+test-results/
+playwright-report/
+*.log
+.env*
+.DS_Store
+*.zip
+*.bundle
+tests/fixtures/vision/anh/
+tests/fixtures/vision/labels.json
+tests/fixtures/vision/.cache.json
