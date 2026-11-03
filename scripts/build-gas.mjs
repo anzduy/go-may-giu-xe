@@ -20,3 +20,17 @@ for (const name of order) {
 
 fs.writeFileSync(path.join(repo, 'gas', 'Shared.js'), parts.join('\n'));
 console.log('Đã tạo gas/Shared.js');
+
+// File gộp DUY NHẤT để dán vào Apps Script (thay cho 11 file): gas-bundle/GoMay-GiuXe.gs
+const gasFiles = ['Shared.js', ...fs.readdirSync(path.join(repo, 'gas')).filter((f) => f.endsWith('.js') && f !== 'Shared.js').sort()];
+const bundle = [
+  '// ===== App Giữ Xe Gò Mây Arena — máy chủ Google Apps Script (FILE GỘP, tự sinh, không sửa tay) =====',
+  '// Cách dùng: dán TOÀN BỘ file này vào một file duy nhất trong Apps Script, lưu, rồi chạy hàm setup().',
+  `// Nguồn: thư mục gas/ (${gasFiles.join(', ')}) — sinh bằng: npm run build:gas`,
+  '',
+  ...gasFiles.map((f) => `// ==================== ${f} ====================\n${fs.readFileSync(path.join(repo, 'gas', f), 'utf8').trim()}\n`),
+].join('\n');
+fs.mkdirSync(path.join(repo, 'gas-bundle'), { recursive: true });
+fs.writeFileSync(path.join(repo, 'gas-bundle', 'GoMay-GiuXe.gs'), bundle);
+fs.copyFileSync(path.join(repo, 'gas', 'appsscript.json'), path.join(repo, 'gas-bundle', 'appsscript.json'));
+console.log(`Đã tạo gas-bundle/GoMay-GiuXe.gs (${gasFiles.length} file, ${Math.round(bundle.length / 1024)} KB)`);

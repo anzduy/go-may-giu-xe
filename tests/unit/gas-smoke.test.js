@@ -38,6 +38,8 @@ function fakeGoogle() {
   const props = new Map();
   const cache = new Map();
   const spreadsheet = {
+    getId: () => 'ss-main',
+    getUrl: () => 'https://docs.google.com/spreadsheets/d/ss-main',
     getSheetByName: (n) => sheets.get(n) || null,
     insertSheet: (n) => makeSheet(n),
     getSheets: () => [...sheets.values()],
@@ -84,7 +86,7 @@ function fakeGoogle() {
     sheets, files, folders, root, spreadsheets, fetches,
     setFetch(fn) { fetchImpl = fn; },
     globals: {
-      SpreadsheetApp: { getActiveSpreadsheet: () => spreadsheet, create: (n) => makeSpreadsheet(n), openById: (id) => spreadsheets.get(id) },
+      SpreadsheetApp: { getActiveSpreadsheet: () => spreadsheet, create: (n) => makeSpreadsheet(n), openById: (id) => (id === 'ss-main' ? spreadsheet : spreadsheets.get(id)) },
       UrlFetchApp: { fetch: (url, opts) => { fetches.push({ url, opts }); const r = fetchImpl(url, opts); return { getResponseCode: () => r.code, getContentText: () => r.body }; } },
       PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => (props.has(k) ? props.get(k) : null), setProperty: (k, v) => props.set(k, String(v)) }) },
       LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock: () => {} }) },
@@ -399,5 +401,25 @@ describe('Apps Script (giả lập)', () => {
     for (let i = 0; i < 5; i++) expect(call('login', { staffName: 'Hoa', pin: '0000' }).error.code).toBe('BAD_LOGIN');
     call('saveStaff', { name: 'Hoa', role: 'staff', pin: '2468' }, manager);
     expect(call('login', { staffName: 'Hoa', pin: '2468' }).error.message).toContain('15 phút');
+  });
+
+  it('file gộp gas-bundle/GoMay-GiuXe.gs chạy được; dự án KHÔNG gắn bảng tính thì setup() tự tạo bảng tính', () => {
+    const f2 = fakeGoogle();
+    const noActive = { ...f2.globals, SpreadsheetApp: { ...f2.globals.SpreadsheetApp, getActiveSpreadsheet: () => null } };
+    // bảng tính tự tạo phải lưu được trang tính → dùng spreadsheet giả của fake
+    const created = [];
+    const realSS = f2.globals.SpreadsheetApp.getActiveSpreadsheet();
+    const newSS = { ...realSS, getId: () => 'sheet-moi', getUrl: () => 'https://docs.google.com/spreadsheets/d/sheet-moi' };
+    noActive.SpreadsheetApp.create = (n) => { created.push(n); return newSS; };
+    noActive.SpreadsheetApp.openById = (id) => (id === 'sheet-moi' ? newSS : null);
+    const ctx2 = vm.createContext({ ...noActive });
+    vm.runInContext(fs.readFileSync('gas-bundle/GoMay-GiuXe.gs', 'utf8'), ctx2, { filename: 'GoMay-GiuXe.gs' });
+    const msg = ctx2.setup();
+    expect(created).toEqual(['GoMay-GiuXe']);
+    expect(msg).toContain('Đã tạo bảng tính "GoMay-GiuXe"');
+    expect(ctx2.PropertiesService.getScriptProperties().getProperty('SHEET_ID')).toBe('sheet-moi');
+    const pin2 = /mã PIN (\d{6})/.exec(msg)[1];
+    const r = JSON.parse(ctx2.doPost({ postData: { contents: JSON.stringify({ action: 'login', data: { staffName: 'Quản lý', pin: pin2 } }) } }).content);
+    expect(r.ok).toBe(true);
   });
 });

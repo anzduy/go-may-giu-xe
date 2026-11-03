@@ -25,8 +25,16 @@ var NUMBER_COLS = ['ticketNo', 'fee', 'priceAtIn', 'rev', 'fromNo', 'toNo', 'mot
 var BOOL_COLS = ['noTicket', 'active', 'revoked'];
 var JSON_COLS = ['otherItems', 'confidence', 'summary', 'detail'];
 
+/**
+ * Bảng tính dữ liệu. Dự án mở từ Google Sheets (Tiện ích mở rộng → Apps Script) thì dùng chính bảng tính đó;
+ * dự án tạo riêng ở script.google.com thì dùng bảng tính setup() đã tạo (lưu ở Script Property SHEET_ID).
+ */
 function ss_() {
-  return SpreadsheetApp.getActiveSpreadsheet();
+  var id = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
+  if (id) return SpreadsheetApp.openById(id);
+  var active = SpreadsheetApp.getActiveSpreadsheet();
+  if (active) return active;
+  throw err_('SETUP_REQUIRED', 'Chưa chạy setup()');
 }
 
 function sheet_(name) {
