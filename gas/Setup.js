@@ -47,3 +47,16 @@ function getOrCreateFolder_(parent, name) {
   var it = parent.getFoldersByName(name);
   return it.hasNext() ? it.next() : parent.createFolder(name);
 }
+
+/**
+ * Thêm nhân viên từ trình soạn thảo Apps Script (trước khi có màn hình quản lý nhân viên):
+ * sửa tên / mã PIN / vai trò bên dưới → chọn hàm themNhanVien → Chạy.
+ */
+function themNhanVien() {
+  var TEN = 'Tuấn';
+  var MA_PIN = '1234'; // 4–6 chữ số
+  var VAI_TRO = 'staff'; // 'staff' = nhân viên, 'manager' = quản lý
+  var r = saveStaff({ name: TEN, role: VAI_TRO, pin: MA_PIN }, { staff: { id: 'editor' }, deviceId: 'editor' });
+  Logger.log('Đã thêm/sửa nhân viên: ' + JSON.stringify(r.staff));
+  return r;
+}

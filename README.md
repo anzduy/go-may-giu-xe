@@ -46,9 +46,8 @@ Tài liệu thiết kế (Spec Kit): [`specs/001-giu-xe-go-may/`](specs/001-giu-
 1. Mở link → lần đầu dán **URL `/exec`** vào ô "Địa chỉ máy chủ" → đăng nhập **Quản lý** + mã PIN ở bước 1.4.
 2. **Thêm vào màn hình chính** (iPhone: Safari → Chia sẻ → Thêm vào MH chính; Android: Chrome → ⋮ → Cài đặt
    ứng dụng). Cho phép **Camera**.
-3. Tạo tài khoản nhân viên: hiện tạo trong trang tính **Staff** bằng hàm `saveStaff` (màn hình quản lý nhân viên
-   có ở bản sau) — hoặc chạy trong Apps Script:
-   `saveStaff({name:'Tuấn', role:'staff', pin:'1234'}, {staff:{id:'setup'}, deviceId:'setup'})`.
+3. Tạo tài khoản nhân viên (màn hình quản lý nhân viên có ở bản sau): trong Apps Script mở `Setup.js`, sửa
+   tên / mã PIN trong hàm **`themNhanVien`** → chọn hàm đó → **Chạy**. Lặp lại cho từng người.
 
 Hướng dẫn cho nhân viên: [`docs/huong-dan-nhan-vien.md`](docs/huong-dan-nhan-vien.md).
 
