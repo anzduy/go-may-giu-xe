@@ -40,20 +40,25 @@ không chặn lượt trả xe sau. Khách đội mũ khi dắt xe ra vẫn tín
 
 ## Cài đặt (chủ sân làm một lần)
 
-### 1. Máy chủ: Google Sheets + Apps Script
+### 1. Máy chủ: Google Apps Script (dán 1 file)
 
-1. Tạo file Google Sheets mới tên **GoMay-GiuXe**.
-2. **Tiện ích mở rộng → Apps Script**. Xóa nội dung `Code.gs` mặc định.
-3. Tạo các file trong thư mục [`gas/`](gas/) với đúng tên và nội dung (`Shared.js`, `Db.js`, `Main.js`, `Auth.js`,
-   `Sessions.js`, `Admin.js`, `Setup.js`, `Cleanup.js`, `Vision.js`); bật **Cài đặt dự án → Hiển thị tệp
-   "appsscript.json"** và dán nội dung [`gas/appsscript.json`](gas/appsscript.json).
-   *(Hoặc dùng `clasp`: chép `.clasp.json.example` thành `.clasp.json`, điền scriptId, chạy `npm run push:gas`.)*
-4. Chọn hàm **`setup`** → **Chạy** → cấp quyền. Mở **Nhật ký thực thi**: có dòng
-   `Tài khoản đầu tiên: tên "Quản lý", mã PIN ......` — ghi lại mã PIN này.
-5. **Triển khai → Triển khai mới → Ứng dụng web**: *Thực thi với tư cách*: **Tôi**; *Ai có quyền truy cập*:
-   **Bất kỳ ai**. Bấm Triển khai, chép **URL kết thúc bằng `/exec`**.
+1. Vào **script.google.com** → **Dự án mới** (hoặc từ một Google Sheets: **Tiện ích mở rộng → Apps Script**).
+2. Mở file [`gas-bundle/GoMay-GiuXe.gs`](gas-bundle/GoMay-GiuXe.gs) trên GitHub → bấm **Raw** → **Ctrl+A, Ctrl+C**.
+3. Trong Apps Script: xóa hết nội dung file `Mã.gs`/`Code.gs` có sẵn → **dán** → **Ctrl+S** để lưu.
+4. **⚙️ Cài đặt dự án** → tick **Hiển thị tệp kê khai "appsscript.json" trong trình chỉnh sửa** → quay lại trình
+   chỉnh sửa, mở `appsscript.json`, thay bằng nội dung [`gas-bundle/appsscript.json`](gas-bundle/appsscript.json) → lưu.
+5. Trên thanh công cụ chọn hàm **`setup`** → **Chạy** → **cấp quyền** (Google cảnh báo "chưa xác minh" thì bấm
+   **Nâng cao → Đi tới … (không an toàn)** — đây là mã của chính bạn).
+6. Mở **Nhật ký thực thi**: có dòng `Tài khoản đầu tiên: tên "Quản lý", mã PIN ......` — **ghi lại mã PIN**.
+   Nếu dự án tạo ở script.google.com, app tự tạo bảng tính **GoMay-GiuXe** trong Google Drive (có link trong nhật ký).
+7. **Triển khai → Triển khai mới** → ⚙️ chọn **Ứng dụng web**: *Thực thi với tư cách*: **Tôi**; *Ai có quyền truy cập*:
+   **Bất kỳ ai** → **Triển khai** → chép **URL kết thúc bằng `/exec`**.
 
-> Sửa mã Apps Script về sau: **Triển khai → Quản lý triển khai → sửa → Phiên bản mới** (URL giữ nguyên).
+> Đã dán 11 file riêng lẻ từ thư mục `gas/` cũng chạy được như nhau — không cần dán lại. Đừng dùng cả hai cách trong
+> cùng một dự án (bị trùng tên hàm).
+
+> Cập nhật mã về sau: dán lại `gas-bundle/GoMay-GiuXe.gs` → lưu → **Triển khai → Quản lý triển khai → ✏️ sửa →
+> Phiên bản: Phiên bản mới → Triển khai** (URL `/exec` giữ nguyên).
 > Sau khi cập nhật mã mới, chạy lại **`setup`** một lần (an toàn, không mất dữ liệu) để thêm cột mới nếu có.
 
 ### 1b. (Tùy chọn) Bật AI đọc biển số, màu xe, số mũ
@@ -92,10 +97,10 @@ Bảo mật (nên đọc): [`docs/bao-mat.md`](docs/bao-mat.md).
 
 ```bash
 npm install
-npm test            # 129 unit test: logic phiếu, giá, đồng bộ, AI đọc ảnh, Apps Script chạy giả lập
+npm test            # 130 unit test: logic phiếu, giá, đồng bộ, AI đọc ảnh, Apps Script chạy giả lập
 npm run test:e2e    # 26 test đầu-cuối trên Chromium với camera giả (2 máy, mất mạng, sao lưu ảnh)
 npm run serve       # chạy thử tại http://localhost:5173
-npm run build:gas   # sinh gas/Shared.js từ web/shared/ (chạy sau khi sửa web/shared/)
+npm run build:gas   # sinh gas/Shared.js và file gộp gas-bundle/GoMay-GiuXe.gs (chạy sau khi sửa web/shared/ hoặc gas/)
 node scripts/eval-vision.mjs   # đo độ chính xác AI trên ảnh thật (cần khóa API)
 ```
 

@@ -1,7 +1,15 @@
 // Chạy setup() MỘT LẦN sau khi dán mã vào Apps Script của file Google Sheets "GoMay-GiuXe".
 
 function setup() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var props0 = PropertiesService.getScriptProperties();
+  var ss = props0.getProperty('SHEET_ID') ? SpreadsheetApp.openById(props0.getProperty('SHEET_ID')) : SpreadsheetApp.getActiveSpreadsheet();
+  var created = false;
+  if (!ss) {
+    // Dự án tạo riêng (không gắn bảng tính) → tự tạo bảng tính dữ liệu.
+    ss = SpreadsheetApp.create('GoMay-GiuXe');
+    created = true;
+  }
+  props0.setProperty('SHEET_ID', ss.getId());
   Object.keys(HEADERS).forEach(function (name) {
     var sh = ss.getSheetByName(name) || ss.insertSheet(name);
     sh.getRange(1, 1, sh.getMaxRows(), Math.max(sh.getMaxColumns(), HEADERS[name].length)).setNumberFormat('@');
@@ -26,7 +34,7 @@ function setup() {
   }
   if (!findBy('Config', 'key', 'alertThreshold')) appendObject('Config', { key: 'alertThreshold', value: '0.7' });
 
-  var message = 'Đã cài đặt xong.';
+  var message = 'Đã cài đặt xong.' + (created ? ' Đã tạo bảng tính "GoMay-GiuXe" trong Google Drive: ' + ss.getUrl() : '');
   if (readObjects('Staff').length === 0) {
     var pin = String(Math.floor(100000 + Math.random() * 900000));
     var id = 'st_' + Utilities.getUuid().slice(0, 8);
