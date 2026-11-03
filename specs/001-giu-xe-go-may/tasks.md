@@ -252,9 +252,9 @@ rồi mới làm phần code.
 - [X] T075 [P] Write `README.md` (Vietnamese): what the app does, setup steps from quickstart.md A–C, how to run tests
 - [X] T076 [P] Write `docs/huong-dan-nhan-vien.md`: add to home screen on iPhone/Android, allow camera, framing (biển số + mũ) at entry and exit, fixing ticket number, lost ticket, handling alerts politely
 - [X] T077 [P] Add `.github/workflows/pages.yml` deploying `web/` to GitHub Pages on push to `main`
-- [ ] T078 Bump `sw.js` cache version automatically in `scripts/build-gas.mjs` or a `scripts/bump-sw.mjs` so phones get updates
-- [ ] T079 Security pass: confirm all 🔴 actions reject staff tokens, tokens revocable from `web/js/screens/admin.js`, no PIN stored in plain text, `QR_SECRET` and `VISION_API_KEY` only in Script Properties
-- [ ] T080 Run all tests (`npm test`, `npm run test:e2e`) and fix failures
+- [X] T078 Bump `sw.js` cache version automatically in `scripts/build-gas.mjs` or a `scripts/bump-sw.mjs` so phones get updates
+- [X] T079 Security pass: confirm all 🔴 actions reject staff tokens, tokens revocable from `web/js/screens/admin.js`, no PIN stored in plain text, `QR_SECRET` and `VISION_API_KEY` only in Script Properties
+- [X] T080 Run all tests (`npm test`, `npm run test:e2e`) and fix failures
 - [ ] T081 Run quickstart.md section E field test (20 scenarios) on real phones for one evening and record results in `specs/001-giu-xe-go-may/checklists/field-test.md`
 
 ---

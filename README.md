@@ -32,6 +32,9 @@ sau); chủ sân vào **Quản lý**: báo cáo theo ngày/ca (hôm nay, 7 ngày
 không chặn lượt trả xe sau. Khách đội mũ khi dắt xe ra vẫn tính đủ mũ. Đóng cảnh báo bằng "Đúng xe / đội mũ",
 "Báo sai" hoặc "Có vấn đề thật". Quản lý chỉnh **độ nhạy**, xem danh sách cảnh báo, sửa tay kết quả AI.
 
+✅ **Hoàn thiện**: app tự nhận bản mới (hiện nút "Cập nhật ngay", không tự tải lại giữa lúc trả xe); rà soát bảo mật;
+đăng xuất từ xa mọi máy của một nhân viên.
+
 ⏳ **Còn lại**: đo độ chính xác AI trên ~50 ảnh thật ở bãi (`node scripts/eval-vision.mjs` — xem
 `tests/fixtures/vision/labels.example.json`), phần hoàn thiện, chạy thử thực tế 1 buổi tối.
 
@@ -83,12 +86,13 @@ Thuộc tính tập lệnh (Script Properties)** và thêm:
    (Dự phòng: hàm **`themNhanVien`** trong `Setup.js` của Apps Script.)
 
 Hướng dẫn cho nhân viên: [`docs/huong-dan-nhan-vien.md`](docs/huong-dan-nhan-vien.md).
+Bảo mật (nên đọc): [`docs/bao-mat.md`](docs/bao-mat.md).
 
 ## Phát triển
 
 ```bash
 npm install
-npm test            # 125 unit test: logic phiếu, giá, đồng bộ, AI đọc ảnh, Apps Script chạy giả lập
+npm test            # 129 unit test: logic phiếu, giá, đồng bộ, AI đọc ảnh, Apps Script chạy giả lập
 npm run test:e2e    # 26 test đầu-cuối trên Chromium với camera giả (2 máy, mất mạng, sao lưu ảnh)
 npm run serve       # chạy thử tại http://localhost:5173
 npm run build:gas   # sinh gas/Shared.js từ web/shared/ (chạy sau khi sửa web/shared/)

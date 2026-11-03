@@ -17,6 +17,7 @@ var ROUTES = {
   setAnalysis: { fn: function (d, a) { return setAnalysis(d, a); }, manager: true },
   setPrices: { fn: function (d, a) { return setPrices(d, a); }, manager: true },
   saveStaff: { fn: function (d, a) { return saveStaff(d, a); }, manager: true },
+  revokeTokens: { fn: function (d, a) { return revokeTokens(d, a); }, manager: true },
 };
 
 var ERROR_MESSAGES = {

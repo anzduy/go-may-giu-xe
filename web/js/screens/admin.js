@@ -119,6 +119,13 @@ async function staffTab(body) {
     list.replaceChildren(...r.data.staff.map((s) => {
       const resetBtn = h('button', { type: 'button', class: 'small' }, 'Đổi PIN');
       const toggle = h('button', { type: 'button', class: s.active ? 'small danger' : 'small' }, s.active ? 'Khóa' : 'Mở khóa');
+      const logoutAll = h('button', { type: 'button', class: 'small ghost', title: 'Đăng xuất mọi máy của người này (mất điện thoại…)' }, 'Đăng xuất máy');
+      logoutAll.addEventListener('click', async () => {
+        if (!confirm(`Đăng xuất ${s.name} khỏi mọi điện thoại?`)) return;
+        const r = await call('revokeTokens', { staffId: s.id });
+        if (!r.ok) { msg.textContent = r.error.code === 'OFFLINE' ? 'Cần có mạng' : r.error.message || 'Lỗi'; return; }
+        toast(`Đã đăng xuất ${s.name} khỏi ${r.data.revoked} máy`);
+      });
       resetBtn.addEventListener('click', async () => {
         const p = prompt(`Mã PIN mới cho ${s.name} (4–6 số):`);
         if (p && (await save({ id: s.id, name: s.name, role: s.role, pin: p, active: s.active }))) toast(`Đã đổi PIN cho ${s.name}`);
@@ -126,7 +133,7 @@ async function staffTab(body) {
       toggle.addEventListener('click', () => save({ id: s.id, name: s.name, role: s.role, active: !s.active }));
       return h('div', { class: 'item', 'data-staff': s.name },
         h('div', { style: 'flex:1' }, h('b', {}, s.name), h('div', { class: 'muted' }, `${s.role === 'manager' ? 'Quản lý' : 'Nhân viên'}${s.active ? '' : ' · ĐÃ KHÓA'}`)),
-        resetBtn, toggle);
+        resetBtn, logoutAll, toggle);
     }));
   }
   add.addEventListener('click', async () => {

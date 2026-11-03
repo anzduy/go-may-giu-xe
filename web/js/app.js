@@ -3,7 +3,7 @@ import * as db from './db.js';
 import * as sync from './sync.js';
 import { setAuth } from './api.js';
 import { ctx } from './ctx.js';
-import { h, uuid, hideToast } from './ui.js';
+import { h, uuid, hideToast, toast } from './ui.js';
 import { VEHICLE_TYPES } from '../shared/pricing.js';
 import * as login from './screens/login.js';
 import * as checkin from './screens/checkin.js';
@@ -160,7 +160,17 @@ async function boot() {
   document.addEventListener('pointerdown', unlockAudio, { once: true });
 
   if ('serviceWorker' in navigator && !/[?&]nosw\b/.test(location.search)) {
-    navigator.serviceWorker.register('sw.js').catch(() => {});
+    const hadController = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.register('sw.js').then((reg) => {
+      // Kiểm tra bản mới mỗi khi mở lại app và mỗi 30 phút.
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}); });
+      setInterval(() => reg.update().catch(() => {}), 30 * 60 * 1000);
+    }).catch(() => {});
+    // Có bản mới → KHÔNG tự tải lại giữa lúc đang trả xe; hiện nút để nhân viên bấm khi rảnh.
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!hadController) return;
+      toast('Có bản cập nhật mới của app', { ms: 600000, actions: [{ label: '⟳ Cập nhật ngay', onClick: () => location.reload() }] });
+    });
   }
   window.__gomay = { db, sync, ctx };
   alerts.initAlerts(ctx);

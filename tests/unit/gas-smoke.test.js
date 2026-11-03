@@ -354,4 +354,50 @@ describe('Apps Script (giả lập)', () => {
     expect(actions).toEqual(expect.arrayContaining(['alert', 'resolve_alert', 'set_config', 'set_analysis']));
     props.setProperty('VISION_API_KEY', '');
   });
+
+  it('T079 bảo mật: mọi lệnh quản lý từ chối token nhân viên; không lộ PIN và khóa AI; khóa/đổi PIN thì đăng xuất mọi máy', () => {
+    const managerOnly = Object.keys(gas.ROUTES).filter((k) => gas.ROUTES[k].manager);
+    expect(managerOnly.sort()).toEqual(['createBatch', 'listAlerts', 'listBatches', 'listStaff', 'reprintBatch', 'report',
+      'revokeTokens', 'saveStaff', 'setAnalysis', 'setConfig', 'setPrices'].sort());
+    for (const action of managerOnly) expect(call(action, {}, staffToken).error.code, action).toBe('FORBIDDEN');
+    // Hủy lượt (qua push) cũng chỉ quản lý — đã kiểm ở test US4/US5.
+
+    // PIN không lưu dạng chữ thường: trang tính Staff chỉ có pinHash
+    const staffSheet = fake.sheets.get('Staff').data;
+    expect(staffSheet[0]).not.toContain('pin');
+    expect(JSON.stringify(staffSheet)).not.toContain('"1234"');
+    expect(JSON.stringify(staffSheet)).not.toContain(pin);
+
+    // Khóa AI không bao giờ trả về máy; qrSecret chỉ trả lúc đăng nhập (cần để kiểm tra phiếu khi mất mạng)
+    const props = gas.PropertiesService.getScriptProperties();
+    props.setProperty('VISION_API_KEY', 'KHOA-BI-MAT-XYZ');
+    const responses = [call('login', { staffName: 'Tuấn', pin: '1234' }), call('pull', { sinceRev: 0 }, manager), call('report', { from: today(), to: today() }, manager),
+      call('listStaff', {}, manager), call('listAlerts', {}, manager)];
+    for (const r of responses) expect(JSON.stringify(r)).not.toContain('KHOA-BI-MAT-XYZ');
+    expect(JSON.stringify(call('pull', { sinceRev: 0 }, manager))).not.toContain(props.getProperty('QR_SECRET'));
+    props.setProperty('VISION_API_KEY', '');
+
+    // Đăng xuất từ xa
+    const t2 = call('login', { staffName: 'Tuấn', pin: '1234' }).data.token;
+    expect(call('pull', {}, t2).ok).toBe(true);
+    const tuan = gas.findBy('Staff', 'name', 'Tuấn');
+    expect(call('revokeTokens', { staffId: tuan.id }, manager).data.revoked).toBeGreaterThanOrEqual(2);
+    expect(call('pull', {}, t2).error.code).toBe('AUTH_REQUIRED');
+    expect(call('pull', {}, staffToken).error.code).toBe('AUTH_REQUIRED');
+    // Khóa tài khoản → không đăng nhập được, token cũ hết hiệu lực
+    const t3 = call('login', { staffName: 'Tuấn', pin: '1234' }).data.token;
+    call('saveStaff', { id: tuan.id, name: 'Tuấn', role: 'staff', active: false }, manager);
+    expect(call('pull', {}, t3).error.code).toBe('AUTH_REQUIRED');
+    expect(call('login', { staffName: 'Tuấn', pin: '1234' }).error.code).toBe('STAFF_INACTIVE');
+    // Đổi PIN → PIN cũ không dùng được
+    call('saveStaff', { id: tuan.id, name: 'Tuấn', role: 'staff', active: true, pin: '9999' }, manager);
+    expect(call('login', { staffName: 'Tuấn', pin: '1234' }).error.code).toBe('BAD_LOGIN');
+    expect(call('login', { staffName: 'Tuấn', pin: '9999' }).ok).toBe(true);
+  });
+
+  it('T079 bảo mật: sai PIN 5 lần thì khóa đăng nhập 15 phút', () => {
+    for (let i = 0; i < 5; i++) expect(call('login', { staffName: 'Hoa', pin: '0000' }).error.code).toBe('BAD_LOGIN');
+    call('saveStaff', { name: 'Hoa', role: 'staff', pin: '2468' }, manager);
+    expect(call('login', { staffName: 'Hoa', pin: '2468' }).error.message).toContain('15 phút');
+  });
 });

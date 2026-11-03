@@ -78,6 +78,29 @@ function saveStaff(d, auth) {
     };
     upsertObjects('Staff', [row], all);
     audit(auth.staff.id, auth.deviceId, 'staff_change', '', { id: id, name: name, role: role, active: row.active, pinChanged: !!d.pin });
+    // Khóa tài khoản hoặc đổi PIN → đăng xuất mọi máy của người đó.
+    if (existing && (!row.active || d.pin)) revokeTokensOf_(id);
     return { staff: { id: id, name: name, role: role, active: row.active } };
+  });
+}
+
+/** Thu hồi mọi token của một nhân viên (gọi bên trong withLock). */
+function revokeTokensOf_(staffId) {
+  var all = readObjects('Tokens');
+  var mine = all.filter(function (t) { return t.staffId === staffId && !t.revoked; });
+  if (!mine.length) return 0;
+  upsertObjects('Tokens', mine.map(function (t) { var r = strip_(t); r.revoked = true; return r; }), all, 'token');
+  var cache = CacheService.getScriptCache();
+  mine.forEach(function (t) { cache.remove('tok:' + t.token); });
+  return mine.length;
+}
+
+/** Quản lý: đăng xuất mọi máy của một nhân viên (mất điện thoại, nghỉ việc). */
+function revokeTokens(d, auth) {
+  if (!d.staffId) throw err_('BAD_REQUEST');
+  return withLock(function () {
+    var n = revokeTokensOf_(String(d.staffId));
+    audit(auth.staff.id, auth.deviceId, 'revoke_tokens', '', { staffId: d.staffId, count: n });
+    return { revoked: n };
   });
 }

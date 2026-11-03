@@ -15,4 +15,4 @@ export function setApiUrl(url) {
 }
 
 export const POLL_MS = 3000;
-export const APP_VERSION = '0.1.0';
+export const APP_VERSION = '1.0.0';
