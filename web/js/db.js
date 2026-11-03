@@ -7,17 +7,20 @@ let dbp;
 
 export function open() {
   if (!dbp) {
-    dbp = openDB('gomay', 1, {
-      upgrade(db) {
-        const s = db.createObjectStore('sessions', { keyPath: 'id' });
-        s.createIndex('byTicket', ['ticketDate', 'ticketNo']);
-        s.createIndex('byStatus', 'status');
-        const p = db.createObjectStore('photos', { keyPath: 'id' });
-        p.createIndex('bySession', 'sessionId');
-        p.createIndex('byUploadState', 'uploadState');
-        const o = db.createObjectStore('outbox', { keyPath: 'opId' });
-        o.createIndex('createdAt', 'createdAt');
-        db.createObjectStore('meta');
+    dbp = openDB('gomay', 2, {
+      upgrade(db, oldVersion) {
+        if (oldVersion < 1) {
+          const s = db.createObjectStore('sessions', { keyPath: 'id' });
+          s.createIndex('byTicket', ['ticketDate', 'ticketNo']);
+          s.createIndex('byStatus', 'status');
+          const p = db.createObjectStore('photos', { keyPath: 'id' });
+          p.createIndex('bySession', 'sessionId');
+          p.createIndex('byUploadState', 'uploadState');
+          const o = db.createObjectStore('outbox', { keyPath: 'opId' });
+          o.createIndex('createdAt', 'createdAt');
+          db.createObjectStore('meta');
+        }
+        if (oldVersion < 2) db.createObjectStore('alerts', { keyPath: 'id' }); // US7: cảnh báo ảnh ra ≠ ảnh vào
       },
     });
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
@@ -91,7 +94,7 @@ export async function deleteOps(opIds) {
 /** Xóa toàn bộ dữ liệu trên máy (đăng xuất hẳn). */
 export async function clearAll() {
   const db = await open();
-  await Promise.all(['sessions', 'photos', 'outbox', 'meta'].map((s) => db.clear(s)));
+  await Promise.all(['sessions', 'photos', 'outbox', 'meta', 'alerts'].map((s) => db.clear(s)));
 }
 
 // ---------- ảnh: hàng đợi tải lên, lấy lại từ cloud, dọn ảnh cũ ----------
@@ -164,4 +167,26 @@ export async function prunePhotos(now = Date.now()) {
   }
   await tx.done;
   return n;
+}
+
+// ---------- cảnh báo (US7) ----------
+
+export async function allAlerts() {
+  return (await open()).getAll('alerts');
+}
+
+export async function putAlerts(list) {
+  const tx = (await open()).transaction('alerts', 'readwrite');
+  await Promise.all(list.map((a) => tx.store.put(a)));
+  await tx.done;
+}
+
+/** Gắn kết quả AI (không kèm ảnh) vào bản ghi ảnh trên máy. */
+export async function putAnalyses(list) {
+  const tx = (await open()).transaction('photos', 'readwrite');
+  for (const a of list) {
+    const cur = (await tx.store.get(a.id)) || { id: a.id, sessionId: a.sessionId, kind: a.kind, uploadState: 'done', blob: null };
+    await tx.store.put({ ...cur, analysis: a });
+  }
+  await tx.done;
 }

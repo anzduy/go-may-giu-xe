@@ -1,6 +1,6 @@
 // Service Worker: lưu giao diện để mở được app khi mất mạng.
 // Chỉ xử lý yêu cầu GET cùng tên miền; yêu cầu tới Apps Script đi thẳng ra mạng.
-const CACHE = 'gomay-shell-v0.3.0';
+const CACHE = 'gomay-shell-v0.4.0';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'config.js',
   'css/app.css', 'css/print.css',
@@ -8,8 +8,8 @@ const SHELL = [
   'vendor/jsQR.js', 'vendor/qrcode-generator.js', 'vendor/idb.js',
   'js/app.js', 'js/ctx.js', 'js/api.js', 'js/photo-queue.js', 'js/db.js', 'js/sync.js', 'js/camera.js', 'js/scanner.js', 'js/ui.js', 'js/print-layout.js',
   'js/screens/login.js', 'js/screens/checkin.js', 'js/screens/checkout.js', 'js/screens/lot.js',
-  'js/screens/session-detail.js', 'js/screens/print.js', 'js/screens/shift.js', 'js/screens/admin.js',
-  'shared/ticket.js', 'shared/pricing.js', 'shared/sessions.js', 'shared/merge.js', 'shared/vision.js', 'shared/report.js',
+  'js/screens/session-detail.js', 'js/screens/print.js', 'js/screens/shift.js', 'js/screens/admin.js', 'js/screens/alerts.js',
+  'shared/ticket.js', 'shared/pricing.js', 'shared/sessions.js', 'shared/merge.js', 'shared/vision.js', 'shared/report.js', 'shared/compare.js',
 ];
 
 self.addEventListener('install', (e) => {

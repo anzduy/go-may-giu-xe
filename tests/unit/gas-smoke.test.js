@@ -309,4 +309,49 @@ describe('Apps Script (giả lập)', () => {
     const actions = fake.sheets.get('Audit').data.slice(1).map((r) => r[3]);
     expect(actions).toEqual(expect.arrayContaining(['lost', 'cancel', 'close_shift', 'set_price']));
   });
+
+  it('US7: ảnh vào 2 mũ, ảnh ra 1 mũ → cảnh báo cho nhân viên trả xe; đóng cảnh báo; độ nhạy; sửa tay kết quả AI', () => {
+    const props = gas.PropertiesService.getScriptProperties();
+    props.setProperty('VISION_API_KEY', 'khoa-thu');
+    props.setProperty('VISION_PROVIDER', 'gemini');
+    const reply = (helmets) => ({ code: 200, body: JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({
+      plate: '', color: 'đỏ', vehicleType: 'motorbike', helmetsOnVehicle: helmets, helmetsWorn: 0, otherItems: [],
+      confidence: { plate: 0, color: 0.9, helmets: 0.9 } }) }] } }] }) });
+    const inAt = new Date().toISOString();
+    call('push', { ops: [{ opId: 'a7-in', type: 'createSession', createdAt: inAt,
+      payload: { id: 'S7', ticketDate: today(), ticketNo: 77, noTicket: false, vehicleType: 'motorbike', inAt, inPhotoId: 'P7in' } }] }, staffToken, 'dA');
+    fake.setFetch(() => reply(2));
+    call('uploadPhoto', { photoId: 'P7in', sessionId: 'S7', kind: 'in', takenAt: inAt, jpegBase64: 'eA==' }, staffToken, 'dA');
+    const since = call('pull', { sinceRev: 0 }, manager, 'dB').data.rev;
+    call('push', { ops: [{ opId: 'a7-out', type: 'checkout', createdAt: inAt, payload: { sessionId: 'S7', outAt: inAt, outPhotoId: 'P7out' } }] }, manager, 'dB');
+    fake.setFetch(() => reply(1));
+    call('uploadPhoto', { photoId: 'P7out', sessionId: 'S7', kind: 'out', takenAt: inAt, jpegBase64: 'eA==' }, manager, 'dB');
+
+    const p = call('pull', { sinceRev: since }, manager, 'dB').data;
+    expect(p.alerts).toHaveLength(1);
+    expect(p.alerts[0]).toMatchObject({ sessionId: 'S7', kind: 'helmet_missing', level: 'medium', status: 'new',
+      message: 'Phiếu 077: lúc vào 2 mũ, lúc ra 1 mũ', notifyStaffId: gas.findBy('Staff', 'name', 'Quản lý').id });
+    expect(p.analyses.map((a) => a.id).sort()).toEqual(['P7out']);
+    // upload lại ảnh ra không tạo cảnh báo trùng
+    call('uploadPhoto', { photoId: 'P7out', sessionId: 'S7', kind: 'out', takenAt: inAt, jpegBase64: 'eA==' }, manager, 'dB');
+    expect(gas.readObjects('Alerts')).toHaveLength(1);
+
+    const alertId = p.alerts[0].id;
+    expect(call('resolveAlert', { alertId, resolution: 'bậy' }, staffToken).error.code).toBe('BAD_REQUEST');
+    expect(call('resolveAlert', { alertId, resolution: 'real_issue', note: 'khách báo mất mũ' }, staffToken).data.alert)
+      .toMatchObject({ status: 'resolved', resolution: 'real_issue', note: 'khách báo mất mũ' });
+    expect(call('pull', { sinceRev: p.rev }, staffToken, 'dA').data.alerts[0].status).toBe('resolved');
+    expect(call('listAlerts', { from: today(), to: today() }, manager).data.alerts[0]).toMatchObject({ ticketNo: 77, inPhotoId: 'P7in' });
+
+    expect(call('setConfig', { alertThreshold: 0.9 }, staffToken).error.code).toBe('FORBIDDEN');
+    expect(call('setConfig', { alertThreshold: 0.3 }, manager).error.code).toBe('BAD_REQUEST');
+    expect(call('setConfig', { alertThreshold: 0.9 }, manager).data.alertThreshold).toBe(0.9);
+    expect(gas.getConfig('alertThreshold')).toBe('0.9');
+
+    const r = call('setAnalysis', { photoId: 'P7in', helmetsOnVehicle: 1 }, manager).data;
+    expect(r.analysis).toMatchObject({ analysisStatus: 'manual', helmetsOnVehicle: 1 });
+    const actions = fake.sheets.get('Audit').data.slice(1).map((x) => x[3]);
+    expect(actions).toEqual(expect.arrayContaining(['alert', 'resolve_alert', 'set_config', 'set_analysis']));
+    props.setProperty('VISION_API_KEY', '');
+  });
 });

@@ -29,7 +29,8 @@ export async function render(root, ctx) {
   const sessions = await db.allSessions();
   const batches = await db.getMeta('batches', []);
   const now = ctx.nowIso();
-  const sum = summarize({ sessions, batches, from: start, to: now, staffId: ctx.staff.id });
+  const myAlerts = (await db.allAlerts()).filter((a) => a.notifyStaffId === ctx.staff.id);
+  const sum = summarize({ sessions, batches, alerts: myAlerts, from: start, to: now, staffId: ctx.staff.id });
   const remaining = remainingTickets(batches, sessions, ctx.today());
 
   const closeBtn = h('button', { type: 'button', class: 'primary', id: 'close-shift' }, 'CHỐT CA');
@@ -58,7 +59,7 @@ export async function render(root, ctx) {
     if (!confirm(`Chốt ca? Tiền cần nộp: ${formatMoney(sum.revenue)}`)) return;
     const endAt = ctx.nowIso();
     const shiftId = uuid();
-    const final = summarize({ sessions: await db.allSessions(), batches, from: start, to: endAt, staffId: ctx.staff.id });
+    const final = summarize({ sessions: await db.allSessions(), batches, alerts: myAlerts, from: start, to: endAt, staffId: ctx.staff.id });
     await db.commit({ ops: [{ opId: uuid(), type: 'closeShift', createdAt: endAt, payload: { shiftId, startAt: start, endAt } }] });
     await db.setMeta('lastShift', { id: shiftId, startAt: start, endAt, summary: final });
     await db.setMeta('shiftStart', endAt);

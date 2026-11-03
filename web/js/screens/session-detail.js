@@ -5,6 +5,9 @@ import { h, timeVN, dateVN, asyncPhoto, toast, uuid } from '../ui.js';
 import { hashParams } from '../ctx.js';
 import { formatNo } from '../../shared/ticket.js';
 import { VEHICLE_TYPES, formatMoney } from '../../shared/pricing.js';
+import { call } from '../api.js';
+import { COLOR_GROUPS } from '../../shared/vision.js';
+import { compareNote } from '../../shared/compare.js';
 
 const STATUS_VN = { in_lot: 'Đang trong bãi', returned: 'Đã trả xe', lost: 'Mất phiếu — đã trả', provisional: 'Trả xe tạm (chờ ghép)', cancelled: 'Đã hủy' };
 
@@ -32,6 +35,7 @@ export async function render(root, ctx) {
       h('figure', {}, s.outPhotoId ? asyncPhoto(s.outPhotoId, 'Ảnh lúc ra', db.getPhotoBlob) : h('div', { class: 'photo-missing' }, 'Chưa trả xe'),
         h('figcaption', {}, s.outAt ? `Lúc ra ${timeVN(s.outAt)}` : ''))),
     plateEditor(s, ctx),
+    await analysisCard(s, ctx),
     s.inSummary ? h('div', { class: 'warn-text', id: 'detail-summary' }, `AI: ${s.inSummary}`) : null,
     h('div', { class: 'card', style: 'margin-top:10px' }, h('b', {}, 'Diễn biến'), h('ul', { class: 'timeline' }, timeline.map((t) => h('li', {}, t)))),
     h('button', { type: 'button', style: 'width:100%', onclick: () => history.back() }, '← Quay lại'),
@@ -58,4 +62,53 @@ function plateEditor(s, ctx) {
   });
   return h('div', { class: 'card', style: 'margin-top:10px' }, h('label', { for: 'plate-input' }, 'Biển số'),
     h('div', { class: 'keypad-row' }, input, save), status);
+}
+
+const pct = (v) => `${Math.round((Number(v) || 0) * 100)}%`;
+
+function analysisLine(a) {
+  if (!a) return h('div', { class: 'muted' }, 'Chưa có kết quả AI');
+  return h('div', {},
+    h('div', {}, `Màu: ${a.color} (${pct(a.confidence.color)})`),
+    h('div', {}, `Mũ trên xe: ${a.helmetsOnVehicle} · đội: ${a.helmetsWorn} (${pct(a.confidence.helmets)})`),
+    a.plate ? h('div', {}, `Biển số: ${a.plate} (${pct(a.confidence.plate)})`) : null,
+    a.otherItems && a.otherItems.length ? h('div', { class: 'muted' }, `Đồ khác: ${a.otherItems.join(', ')}`) : null,
+    a.analysisStatus === 'manual' ? h('div', { class: 'muted' }, '(đã sửa tay)') : null);
+}
+
+/** Kết quả AI của ảnh vào/ra; quản lý sửa tay được (setAnalysis) khi AI đọc sai. */
+async function analysisCard(s, ctx) {
+  const pin = s.inPhotoId && (await db.getPhoto(s.inPhotoId));
+  const pout = s.outPhotoId && (await db.getPhoto(s.outPhotoId));
+  const ain = pin && pin.analysis;
+  const aout = pout && pout.analysis;
+  const alerts = (await db.allAlerts()).filter((a) => a.sessionId === s.id);
+  const threshold = Number(await db.getMeta('alertThreshold', 0.7)) || 0.7;
+  const note = ain && aout ? compareNote(ain, aout, threshold) : '';
+  const card = h('div', { class: 'card', id: 'analysis-card', style: 'margin-top:10px' },
+    h('b', {}, 'AI phân tích ảnh'),
+    h('div', { class: 'analysis' }, h('div', {}, h('div', { class: 'muted' }, 'Lúc vào'), analysisLine(ain)),
+      h('div', {}, h('div', { class: 'muted' }, 'Lúc ra'), analysisLine(aout))),
+    note ? h('div', { class: 'muted' }, `So sánh: ${note}`) : null,
+    ...alerts.map((a) => h('div', { class: a.status === 'new' ? 'warn-text' : 'muted' },
+      `${a.level === 'high' ? '⛔' : '⚠️'} ${a.message}${a.status === 'resolved' ? ` — đã xử lý (${a.resolution})` : ''}`)));
+  if (!ctx.isManager()) return card;
+  for (const [label, p] of [['lúc vào', pin], ['lúc ra', pout]]) {
+    if (!p) continue;
+    const a = p.analysis || {};
+    const color = h('select', { 'data-edit': `color-${p.kind}` }, COLOR_GROUPS.map((c) => h('option', { value: c, selected: c === a.color }, c)));
+    const onV = h('input', { type: 'number', min: '0', max: '6', value: String(a.helmetsOnVehicle ?? 0), 'data-edit': `onv-${p.kind}` });
+    const worn = h('input', { type: 'number', min: '0', max: '6', value: String(a.helmetsWorn ?? 0), 'data-edit': `worn-${p.kind}` });
+    const save = h('button', { type: 'button', class: 'small', 'data-edit': `save-${p.kind}` }, `Lưu sửa ảnh ${label}`);
+    save.addEventListener('click', async () => {
+      const r = await call('setAnalysis', { photoId: p.id, color: color.value, helmetsOnVehicle: Number(onV.value), helmetsWorn: Number(worn.value) });
+      if (!r.ok) { toast(r.error.code === 'OFFLINE' ? 'Cần có mạng' : r.error.message || 'Lỗi', { error: true }); return; }
+      await db.putAnalyses([{ ...r.data.analysis, id: p.id, sessionId: s.id, kind: p.kind }]);
+      toast(`Đã sửa kết quả AI ảnh ${label}${r.data.newAlerts ? ` · ${r.data.newAlerts} cảnh báo mới` : ''}`);
+      sync.syncNow();
+    });
+    card.append(h('details', {}, h('summary', { class: 'muted' }, `Sửa tay kết quả AI ảnh ${label}`),
+      h('label', {}, 'Màu xe'), color, h('div', { class: 'row' }, h('div', {}, h('label', {}, 'Mũ trên xe'), onV), h('div', {}, h('label', {}, 'Mũ đội'), worn)), save));
+  }
+  return card;
 }

@@ -52,6 +52,20 @@ chạm vào xe → **Gán lại số phiếu** → gõ số trên phiếu khách
   AI có thể đọc sai: luôn **nhìn ảnh** là chính. Biển số sai thì vào chi tiết lượt (mục **Trong bãi** → chạm vào xe) → sửa.
 - Tìm xe khi khách mất phiếu: mục **Trong bãi** → gõ **vài số cuối biển số**.
 
+## Cảnh báo AI (thiếu mũ, khác xe)
+
+Sau khi bấm TRẢ XE, nếu AI thấy **ảnh lúc ra khác ảnh lúc vào**, máy **rung** (iPhone: **nháy đỏ**) và kêu,
+một thẻ hiện ở trên cùng với 2 ảnh:
+- ⚠️ **Thiếu mũ bảo hiểm** ("lúc vào 2 mũ, lúc ra 1 mũ") · ⛔ **Khác màu xe / khác biển số** (có thể giao nhầm xe).
+
+Cách xử lý:
+1. **Nhìn 2 ảnh** — AI chỉ gợi ý, có thể nhầm (trời tối, áo mưa che, khách đội mũ…).
+2. Khách còn ở cổng thì **hỏi nhẹ nhàng**, không nói kiểu buộc tội.
+3. Bấm một nút: **Đúng xe / đội mũ** · **Báo sai** · **Có vấn đề thật** (ghi chú nếu cần).
+4. Đang bận trả xe khác thì bấm **Để sau** — cảnh báo vẫn nằm trong mục **Cảnh báo (N)**.
+
+Thẻ cảnh báo **không chặn** việc trả xe tiếp theo. Chốt ca sẽ đếm số cảnh báo và số chưa xử lý.
+
 ## Mất mạng
 
 App **vẫn gửi/trả xe bình thường**. Góc trên hiện "Mất mạng" và "Chờ đồng bộ: N". Có mạng lại, app tự gửi lên —

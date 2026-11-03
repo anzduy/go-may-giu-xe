@@ -4,6 +4,8 @@ import { applyPush, newState } from '../../../web/shared/server-ops.js';
 import { encodeQr, maxTicketNo, dateKey } from '../../../web/shared/ticket.js';
 import { applyInAnalysis } from '../../../web/shared/vision.js';
 import { reportRows } from '../../../web/shared/report.js';
+import { newAlertsForSession } from '../../../web/shared/compare.js';
+import { randomUUID } from 'node:crypto';
 
 export const MOCK_URL = 'https://mock.gomay.test/macros/s/test/exec';
 export const SECRET = 'bi-mat-thu-nghiem';
@@ -21,6 +23,15 @@ export function createMock() {
   const requests = [];
   const photos = new Map(); // photoId → { jpegBase64, sessionId, kind, takenAt }
   let analyze = null; // (photo, session) → analysis | null : giả lập AI đọc ảnh
+  const analyses = new Map(); // photoId → { ...analysis, id, sessionId, kind, rev }
+  let threshold = 0.7;
+
+  function runCompare(sessionId) {
+    const s = state.sessions.get(sessionId);
+    if (!s || !s.inPhotoId || !s.outPhotoId) return;
+    const fresh = newAlertsForSession(s, analyses.get(s.inPhotoId), analyses.get(s.outPhotoId), state.alerts, threshold, new Date().toISOString(), randomUUID);
+    if (fresh.length) { rev++; fresh.forEach((a) => state.alerts.push({ ...a, rev })); }
+  }
   let n = 0;
 
   const ok = (data) => ({ ok: true, data });
@@ -54,14 +65,18 @@ export function createMock() {
         const since = Number(data.sinceRev || 0);
         const sessions = [...state.sessions.values()].filter((s) => !since || s.rev > since);
         return ok({ rev, full: !since, sessions, batches: state.batches, prices: state.prices,
-          staffNames: Object.fromEntries(staff.map((s) => [s.id, s.name])), analyses: [], alerts: [], serverTime: new Date().toISOString() });
+          staffNames: Object.fromEntries(staff.map((s) => [s.id, s.name])), config: { alertThreshold: threshold },
+          analyses: [...analyses.values()].filter((a) => !since || a.rev > since),
+          alerts: state.alerts.filter((a) => !since || a.rev > since), serverTime: new Date().toISOString() });
       }
       case 'uploadPhoto': {
         if (!photos.has(data.photoId)) {
           photos.set(data.photoId, { ...data });
           const session = state.sessions.get(data.sessionId);
           const a = analyze && session ? analyze(data, session) : null;
+          if (a) { rev++; analyses.set(data.photoId, { ...a, analysisStatus: a.status || 'done', id: data.photoId, sessionId: data.sessionId, kind: data.kind, rev }); }
           if (a && data.kind === 'in') { rev++; state.sessions.set(session.id, { ...applyInAnalysis(session, a), rev }); }
+          if (a) runCompare(data.sessionId);
         }
         return ok({ driveFileId: `drive-${data.photoId}` });
       }
@@ -69,6 +84,20 @@ export function createMock() {
         const ph = photos.get(data.photoId);
         return ph ? ok({ jpegBase64: ph.jpegBase64, kind: ph.kind, sessionId: ph.sessionId, takenAt: ph.takenAt }) : fail('PHOTO_NOT_FOUND');
       }
+      case 'resolveAlert': {
+        const a = state.alerts.find((x) => x.id === data.alertId);
+        if (!a || !['ok_customer_wearing', 'false_alarm', 'real_issue'].includes(data.resolution)) return fail('BAD_REQUEST');
+        rev++;
+        Object.assign(a, { status: 'resolved', resolution: data.resolution, note: data.note || '', resolvedBy: me.id, resolvedAt: new Date().toISOString(), rev });
+        return ok({ alert: a });
+      }
+      case 'listAlerts':
+        if (!manager) return fail('FORBIDDEN');
+        return ok({ alerts: state.alerts.map((a) => ({ ...a, ticketNo: state.sessions.get(a.sessionId)?.ticketNo })) });
+      case 'setConfig':
+        if (!manager) return fail('FORBIDDEN');
+        threshold = Number(data.alertThreshold);
+        return ok({ alertThreshold: threshold });
       case 'report':
         if (!manager) return fail('FORBIDDEN');
         return ok({ rows: reportRows({ sessions: [...state.sessions.values()], batches: state.batches, shifts: [...state.shifts.values()],
@@ -123,6 +152,8 @@ export function createMock() {
     session: (id) => state.sessions.get(id),
     photos,
     staff,
+    alerts: () => state.alerts,
+    threshold: () => threshold,
     setAnalyze(fn) { analyze = fn; },
     pushedOps: () => requests.filter((r) => r.action === 'push').flatMap((r) => r.data.ops || []),
     seedBatch(date, fromNo, toNo) { state.batches.push({ date, fromNo, toNo, createdBy: 'st_m', createdAt: new Date().toISOString() }); rev++; },

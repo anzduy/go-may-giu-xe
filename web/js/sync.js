@@ -103,6 +103,12 @@ async function pullOnce() {
   await db.setMeta('batches', d.batches || []);
   await db.setMeta('prices', d.prices || []);
   if (d.staffNames) await db.setMeta('staffNames', d.staffNames);
+  if (d.config && d.config.alertThreshold) await db.setMeta('alertThreshold', d.config.alertThreshold);
+  if (d.analyses && d.analyses.length) await db.putAnalyses(d.analyses);
+  if (d.alerts && d.alerts.length) {
+    await db.putAlerts(d.alerts);
+    emit('alerts:changed', { count: d.alerts.length });
+  }
   await db.setMeta('lastRev', d.rev || 0);
   if (merged.length || batchesChanged) emit('sync:changed', { count: merged.length });
   return true;

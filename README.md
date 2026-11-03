@@ -27,7 +27,13 @@ gán lại số phiếu khi lúc gửi đưa nhầm phiếu.
 sau); chủ sân vào **Quản lý**: báo cáo theo ngày/ca (hôm nay, 7 ngày, tháng này), **đổi giá**, **thêm/khóa nhân viên,
 đổi PIN**, xem lượt có xung đột và **hủy lượt** (bắt buộc lý do, không xóa dữ liệu).
 
-⏳ **Chưa có** (bản sau): cảnh báo AI khi ảnh ra khác ảnh vào — thiếu mũ, khác màu xe (US7).
+✅ **US7 — cảnh báo AI**: so ảnh lúc ra với ảnh lúc vào; **thiếu mũ** (cảnh báo vừa) hoặc **khác màu xe / khác biển số**
+(cảnh báo cao) → thẻ cảnh báo trên máy nhân viên vừa trả xe (rung; iPhone thì nháy đỏ) + âm báo, có 2 ảnh cạnh nhau,
+không chặn lượt trả xe sau. Khách đội mũ khi dắt xe ra vẫn tính đủ mũ. Đóng cảnh báo bằng "Đúng xe / đội mũ",
+"Báo sai" hoặc "Có vấn đề thật". Quản lý chỉnh **độ nhạy**, xem danh sách cảnh báo, sửa tay kết quả AI.
+
+⏳ **Còn lại**: đo độ chính xác AI trên ~50 ảnh thật ở bãi (`node scripts/eval-vision.mjs` — xem
+`tests/fixtures/vision/labels.example.json`), phần hoàn thiện, chạy thử thực tế 1 buổi tối.
 
 ## Cài đặt (chủ sân làm một lần)
 
@@ -82,10 +88,11 @@ Hướng dẫn cho nhân viên: [`docs/huong-dan-nhan-vien.md`](docs/huong-dan-n
 
 ```bash
 npm install
-npm test            # 111 unit test: logic phiếu, giá, đồng bộ, AI đọc ảnh, Apps Script chạy giả lập
-npm run test:e2e    # 23 test đầu-cuối trên Chromium với camera giả (2 máy, mất mạng, sao lưu ảnh)
+npm test            # 125 unit test: logic phiếu, giá, đồng bộ, AI đọc ảnh, Apps Script chạy giả lập
+npm run test:e2e    # 26 test đầu-cuối trên Chromium với camera giả (2 máy, mất mạng, sao lưu ảnh)
 npm run serve       # chạy thử tại http://localhost:5173
 npm run build:gas   # sinh gas/Shared.js từ web/shared/ (chạy sau khi sửa web/shared/)
+node scripts/eval-vision.mjs   # đo độ chính xác AI trên ảnh thật (cần khóa API)
 ```
 
 Cấu trúc: `web/` (trang PWA, không cần build) · `web/shared/` (logic dùng chung web + Apps Script + test) ·

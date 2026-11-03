@@ -8,7 +8,7 @@ var HEADERS = {
     'conflict', 'mergedInto', 'rev'],
   TicketBatches: ['date', 'fromNo', 'toNo', 'createdBy', 'createdAt'],
   Photos: ['id', 'sessionId', 'kind', 'takenAt', 'deviceId', 'driveFileId', 'uploadedAt', 'analysisStatus', 'plate',
-    'color', 'vehicleTypeSeen', 'helmetsOnVehicle', 'helmetsWorn', 'otherItems', 'confidence', 'analyzedAt', 'analysisAttempts'],
+    'color', 'vehicleTypeSeen', 'helmetsOnVehicle', 'helmetsWorn', 'otherItems', 'confidence', 'analyzedAt', 'analysisAttempts', 'rev'],
   Alerts: ['id', 'sessionId', 'kind', 'level', 'message', 'inValue', 'outValue', 'createdAt', 'notifyStaffId', 'status',
     'resolution', 'resolvedBy', 'resolvedAt', 'note', 'rev'],
   Prices: ['effectiveFrom', 'motorbike', 'ebike', 'bicycle', 'lostFee', 'setBy'],

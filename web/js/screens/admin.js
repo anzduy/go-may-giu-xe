@@ -7,7 +7,7 @@ import { hashParams } from '../ctx.js';
 import { formatNo, dateKey } from '../../shared/ticket.js';
 import { formatMoney, priceRuleAt, VEHICLE_TYPES } from '../../shared/pricing.js';
 
-const TABS = { report: 'Báo cáo', prices: 'Giá', staff: 'Nhân viên', conflicts: 'Xung đột' };
+const TABS = { report: 'Báo cáo', alerts: 'Cảnh báo', prices: 'Giá', staff: 'Nhân viên', conflicts: 'Xung đột' };
 const CONFLICT_VN = {
   duplicate_ticket: 'Trùng số phiếu với xe khác', out_of_range: 'Số vượt bộ phiếu đã in', double_checkout: 'Trả xe 2 lần',
   ticket_used: 'Phiếu đã dùng', wrong_date: 'Phiếu ngày khác', invalid: 'Không hợp lệ',
@@ -24,6 +24,7 @@ export async function render(root, ctx) {
   );
   if (tab === 'report') await reportTab(body, ctx);
   if (tab === 'prices') await pricesTab(body, ctx);
+  if (tab === 'alerts') await alertsTab(body, ctx);
   if (tab === 'staff') await staffTab(body, ctx);
   if (tab === 'conflicts') await conflictsTab(body, ctx);
 }
@@ -164,4 +165,49 @@ async function conflictsTab(body, ctx) {
         h('button', { type: 'button', class: 'small', onclick: () => ctx.navigate(`#session?id=${encodeURIComponent(s.id)}`) }, 'Xem'),
         cancelBtn);
     }) : h('div', { class: 'muted' }, '✓ Không có lượt nào cần kiểm tra')));
+}
+
+// ---------- Cảnh báo AI: độ nhạy + danh sách ----------
+const RES_VN = { ok_customer_wearing: 'Đúng xe / khách đội mũ', false_alarm: 'Báo sai', real_issue: 'Có vấn đề thật' };
+
+async function alertsTab(body, ctx) {
+  const current = Number(await db.getMeta('alertThreshold', 0.7)) || 0.7;
+  const slider = h('input', { type: 'range', id: 'alert-threshold', min: '0.5', max: '0.95', step: '0.05', value: String(current) });
+  const label = h('div', { id: 'alert-threshold-label', class: 'muted' });
+  const showLabel = () => {
+    const v = Number(slider.value);
+    label.textContent = `Ngưỡng chắc chắn ${Math.round(v * 100)}% — ${v <= 0.6 ? 'nhạy (nhiều cảnh báo, dễ báo sai)' : v >= 0.85 ? 'chặt (ít cảnh báo, có thể bỏ sót)' : 'cân bằng (khuyên dùng)'}`;
+  };
+  const save = h('button', { type: 'button', class: 'small', id: 'alert-threshold-save' }, 'Lưu độ nhạy');
+  const period = h('select', { id: 'alert-period' }, h('option', { value: 'week' }, '7 ngày qua'), h('option', { value: 'month' }, 'Tháng này'));
+  const stats = h('div', { class: 'muted', id: 'alert-stats' });
+  const list = h('div', { class: 'list', id: 'admin-alert-list' });
+  body.replaceChildren(
+    h('div', { class: 'card' }, h('b', {}, 'Độ nhạy cảnh báo'), slider, label, save),
+    h('div', { class: 'row' }, period), stats, list);
+  slider.addEventListener('input', showLabel);
+  showLabel();
+  save.addEventListener('click', async () => {
+    const r = await call('setConfig', { alertThreshold: Number(slider.value) });
+    if (!r.ok) { toast(r.error.code === 'OFFLINE' ? 'Cần có mạng' : r.error.message || 'Lỗi', { error: true }); return; }
+    await db.setMeta('alertThreshold', r.data.alertThreshold);
+    toast('Đã lưu độ nhạy cảnh báo');
+  });
+  async function load() {
+    const [from, to] = periodRange(period.value, ctx.now());
+    const r = await call('listAlerts', { from, to });
+    if (!r.ok) { list.replaceChildren(h('div', { class: 'banner warn' }, 'Xem cảnh báo cần có mạng')); return; }
+    const rows = r.data.alerts;
+    const resolved = rows.filter((a) => a.status === 'resolved');
+    const falseAlarm = resolved.filter((a) => a.resolution === 'false_alarm').length;
+    stats.textContent = `${rows.length} cảnh báo · đang mở ${rows.length - resolved.length} · có vấn đề thật ${resolved.filter((a) => a.resolution === 'real_issue').length}`
+      + ` · báo sai ${falseAlarm}${resolved.length ? ` (${Math.round((falseAlarm / resolved.length) * 100)}% số đã xử lý)` : ''}`;
+    list.replaceChildren(...rows.map((a) => h('div', { class: 'item' },
+      h('div', { style: 'flex:1' }, h('b', {}, a.message),
+        h('div', { class: 'muted' }, `${timeVN(a.createdAt)} ${dateVN(dateKey(a.createdAt))} · ${a.status === 'new' ? 'ĐANG MỞ' : RES_VN[a.resolution] || a.resolution}${a.note ? ` · ${a.note}` : ''}`)),
+      h('button', { type: 'button', class: 'small', onclick: () => ctx.navigate(`#session?id=${encodeURIComponent(a.sessionId)}`) }, 'Xem'))));
+    if (!rows.length) list.replaceChildren(h('div', { class: 'muted' }, 'Chưa có cảnh báo nào'));
+  }
+  period.addEventListener('change', load);
+  await load();
 }

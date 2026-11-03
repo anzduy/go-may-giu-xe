@@ -13,12 +13,14 @@ import * as sessionDetail from './screens/session-detail.js';
 import * as print from './screens/print.js';
 import * as shift from './screens/shift.js';
 import * as admin from './screens/admin.js';
+import * as alerts from './screens/alerts.js';
 
 const ROUTES = {
   checkin: { screen: checkin, label: 'Gửi xe', gate: true },
   checkout: { screen: checkout, label: 'Trả xe', gate: true },
   lot: { screen: lot, label: 'Trong bãi' },
   shift: { screen: shift, label: 'Chốt ca' },
+  alerts: { screen: alerts, label: 'Cảnh báo' },
   print: { screen: print, label: 'In phiếu', manager: true },
   admin: { screen: admin, label: 'Quản lý', manager: true },
   session: { screen: sessionDetail, hidden: true },
@@ -65,6 +67,7 @@ async function route() {
   lastKey = key;
   document.getElementById('topbar').hidden = false;
   renderNav(key);
+  window.dispatchEvent(new CustomEvent('alerts:changed')); // cập nhật số cảnh báo trên thanh điều hướng
   root.replaceChildren();
   window.scrollTo(0, 0);
   const c = await r.screen.render(root, ctx);
@@ -160,6 +163,7 @@ async function boot() {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
   window.__gomay = { db, sync, ctx };
+  alerts.initAlerts(ctx);
   housekeeping();
   route();
 }

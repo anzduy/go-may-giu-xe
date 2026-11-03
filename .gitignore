@@ -7,3 +7,6 @@ playwright-report/
 .DS_Store
 *.zip
 *.bundle
+tests/fixtures/vision/anh/
+tests/fixtures/vision/labels.json
+tests/fixtures/vision/.cache.json

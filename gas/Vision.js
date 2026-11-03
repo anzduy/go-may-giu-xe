@@ -91,6 +91,7 @@ function storeAnalysis_(photoId, result) {
     row.otherItems = a.otherItems;
     row.confidence = a.confidence;
     row.analyzedAt = new Date().toISOString();
+    row.rev = nextRev();
     upsertObjects('Photos', [row], photos);
 
     if (row.kind === 'in') {
@@ -102,6 +103,8 @@ function storeAnalysis_(photoId, result) {
         upsertObjects('Sessions', [updated], sessions);
       }
     }
+    // Có đủ ảnh vào + ảnh ra đã phân tích → so sánh, tạo cảnh báo (gas/Alerts.js)
+    runCompare_(row.sessionId, threshold);
   });
 }
 

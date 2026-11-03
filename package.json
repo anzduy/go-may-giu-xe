@@ -12,6 +12,7 @@
     "push:gas": "npm run build:gas && clasp push"
   },
   "devDependencies": {
+    "@anthropic-ai/sdk": "0.135.0",
     "@google/clasp": "2.4.2",
     "@playwright/test": "1.63.0",
     "vitest": "3.2.4"

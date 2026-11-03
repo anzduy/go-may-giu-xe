@@ -15,6 +15,7 @@ function loadState_() {
   rows.forEach(function (s) { st.sessions.set(s.id, cleanSession_(s)); });
   st.batches = readObjects('TicketBatches').map(strip_);
   st.prices = readObjects('Prices').map(strip_);
+  st.alerts = readObjects('Alerts').map(strip_);
   var opIds = sheet_('Ops').getLastRow() > 1 ? sheet_('Ops').getRange(2, 1, sheet_('Ops').getLastRow() - 1, 1).getValues() : [];
   opIds.forEach(function (r) { if (r[0]) st.appliedOpIds.add(String(r[0])); });
   st._rows = rows;
@@ -75,8 +76,14 @@ function pull(d) {
     batches: readObjects('TicketBatches').map(strip_).filter(function (b) { return days.indexOf(b.date) >= 0 || b.date > days[0]; }),
     prices: readObjects('Prices').map(strip_),
     staffNames: staffNames_(),
-    analyses: [],
-    alerts: [],
+    config: { alertThreshold: Number(getConfig('alertThreshold', DEFAULT_THRESHOLD)) || DEFAULT_THRESHOLD },
+    analyses: readObjects('Photos').map(strip_).filter(function (p) {
+      return p.analysisStatus && ['done', 'unclear', 'manual'].indexOf(p.analysisStatus) >= 0
+        && (full ? days.indexOf(dateKey(p.takenAt)) >= 0 : Number(p.rev) > sinceRev);
+    }).map(analysisOf_),
+    alerts: readObjects('Alerts').map(strip_).filter(function (a) {
+      return full ? (a.status === 'new' || days.indexOf(dateKey(a.createdAt)) >= 0) : Number(a.rev) > sinceRev;
+    }),
     serverTime: new Date().toISOString(),
   };
 }
@@ -85,4 +92,11 @@ function staffNames_() {
   var names = {};
   readObjects('Staff').forEach(function (s) { names[s.id] = s.name; });
   return names;
+}
+
+/** Phần phân tích AI của một dòng Photos (gửi cho máy để xem/sửa, không kèm ảnh). */
+function analysisOf_(p) {
+  return { id: p.id, sessionId: p.sessionId, kind: p.kind, analysisStatus: p.analysisStatus, plate: p.plate || '',
+    color: p.color || 'không rõ', vehicleType: p.vehicleTypeSeen || 'other', helmetsOnVehicle: Number(p.helmetsOnVehicle) || 0,
+    helmetsWorn: Number(p.helmetsWorn) || 0, otherItems: p.otherItems || [], confidence: p.confidence || { plate: 0, color: 0, helmets: 0 } };
 }

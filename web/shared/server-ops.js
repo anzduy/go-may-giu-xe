@@ -7,7 +7,7 @@ import { applyOp, createProvisional, STATUS, PLATE_STATUS } from './sessions.js'
 
 /** Trạng thái máy chủ dùng cho applyPush. sessions: Map id → lượt gửi. */
 export function newState() {
-  return { sessions: new Map(), batches: [], prices: [], shifts: new Map(), appliedOpIds: new Set() };
+  return { sessions: new Map(), batches: [], prices: [], shifts: new Map(), alerts: [], appliedOpIds: new Set() };
 }
 
 function findOpen(state, date, no, status) {
@@ -124,7 +124,8 @@ function opCancel(state, op) {
 function opCloseShift(state, op) {
   const p = op.payload || {};
   if (!p.shiftId || !p.startAt || !p.endAt) return { status: 'rejected', error: 'BAD_REQUEST' };
-  const summary = summarize({ sessions: [...state.sessions.values()], batches: state.batches, from: p.startAt, to: p.endAt, staffId: op.staffId });
+  const summary = summarize({ sessions: [...state.sessions.values()], batches: state.batches, from: p.startAt, to: p.endAt, staffId: op.staffId,
+    alerts: (state.alerts || []).filter((a) => a.notifyStaffId === op.staffId) });
   const shift = { id: p.shiftId, staffId: op.staffId, deviceId: op.deviceId, startAt: p.startAt, endAt: p.endAt, summary };
   state.shifts.set(shift.id, shift);
   return { status: 'applied', shift, shiftChanged: shift, action: 'close_shift', detail: { revenue: summary.revenue, count: summary.count } };

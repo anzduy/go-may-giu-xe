@@ -1,0 +1,13 @@
+{
+  "_huong_dan": "Chép thành labels.json. file = đường dẫn ảnh trong thư mục này. plate để \"\" nếu ảnh không thấy biển. expect của cặp: [] nếu cùng xe không đổi; \"helmet_missing\" nếu lúc ra bớt mũ; \"color_mismatch\" nếu là xe khác màu.",
+  "photos": [
+    { "file": "anh/001_in.jpg", "plate": "59X1-123.45", "color": "đỏ", "helmetsOnVehicle": 2, "helmetsWorn": 0, "night": false },
+    { "file": "anh/001_out.jpg", "plate": "59X1-123.45", "color": "đỏ", "helmetsOnVehicle": 1, "helmetsWorn": 0, "night": false },
+    { "file": "anh/002_in.jpg", "plate": "", "color": "đen", "helmetsOnVehicle": 1, "helmetsWorn": 0, "night": true },
+    { "file": "anh/002_out.jpg", "plate": "", "color": "đen", "helmetsOnVehicle": 0, "helmetsWorn": 1, "night": true }
+  ],
+  "pairs": [
+    { "in": "anh/001_in.jpg", "out": "anh/001_out.jpg", "expect": ["helmet_missing"] },
+    { "in": "anh/002_in.jpg", "out": "anh/002_out.jpg", "expect": [] }
+  ]
+}

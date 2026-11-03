@@ -11,6 +11,10 @@ var ROUTES = {
   reprintBatch: { fn: function (d, a) { return reprintBatch(d, a); }, manager: true },
   listStaff: { fn: function (d, a) { return listStaff(d, a); }, manager: true },
   report: { fn: function (d, a) { return report(d, a); }, manager: true },
+  resolveAlert: { fn: function (d, a) { return resolveAlert(d, a); } },
+  listAlerts: { fn: function (d, a) { return listAlerts(d, a); }, manager: true },
+  setConfig: { fn: function (d, a) { return setConfig(d, a); }, manager: true },
+  setAnalysis: { fn: function (d, a) { return setAnalysis(d, a); }, manager: true },
   setPrices: { fn: function (d, a) { return setPrices(d, a); }, manager: true },
   saveStaff: { fn: function (d, a) { return saveStaff(d, a); }, manager: true },
 };
