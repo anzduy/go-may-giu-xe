@@ -1,0 +1,113 @@
+// Máy chủ giả cho kiểm thử đầu-cuối: chặn yêu cầu tới URL máy chủ và trả lời bằng ĐÚNG logic
+// web/shared/server-ops.js mà Apps Script dùng (gas/Sessions.js), để test kiểm tra logic thật.
+import { applyPush, newState } from '../../../web/shared/server-ops.js';
+import { encodeQr, maxTicketNo, dateKey } from '../../../web/shared/ticket.js';
+
+export const MOCK_URL = 'https://mock.gomay.test/macros/s/test/exec';
+export const SECRET = 'bi-mat-thu-nghiem';
+export const today = () => dateKey(Date.now());
+
+export function createMock() {
+  const state = newState();
+  let rev = 0;
+  const staff = [
+    { id: 'st_m', name: 'Quản lý', role: 'manager', pin: '111111' },
+    { id: 'st_a', name: 'Tuấn', role: 'staff', pin: '1234' },
+    { id: 'st_b', name: 'Hùng', role: 'staff', pin: '5678' },
+  ];
+  const tokens = new Map();
+  const requests = [];
+  let n = 0;
+
+  const ok = (data) => ({ ok: true, data });
+  const fail = (code, message) => ({ ok: false, error: { code, message: message || code } });
+
+  function handle(body) {
+    const { action, token, deviceId, data = {} } = body;
+    if (action === 'login') {
+      const s = staff.find((x) => x.name.toLowerCase() === String(data.staffName || '').trim().toLowerCase() && x.pin === data.pin);
+      if (!s) return fail('BAD_LOGIN', 'Sai tên hoặc mã PIN');
+      const t = `tok${++n}`;
+      tokens.set(t, s);
+      return ok({ token: t, staff: { id: s.id, name: s.name, role: s.role }, qrSecret: SECRET, serverTime: new Date().toISOString() });
+    }
+    const me = tokens.get(token);
+    if (!me) return fail('AUTH_REQUIRED');
+    const manager = me.role === 'manager';
+    switch (action) {
+      case 'push': {
+        const ops = (data.ops || []).map((o) => ({ ...o, staffId: me.id, deviceId }));
+        const r = applyPush(state, ops);
+        if (r.changed.length) {
+          rev++;
+          for (const s of r.changed) state.sessions.set(s.id, { ...s, rev });
+          for (const res of r.results) if (res.session) res.session = state.sessions.get(res.session.id);
+        }
+        return ok({ results: r.results, rev });
+      }
+      case 'pull': {
+        const since = Number(data.sinceRev || 0);
+        const sessions = [...state.sessions.values()].filter((s) => !since || s.rev > since);
+        return ok({ rev, full: !since, sessions, batches: state.batches, prices: state.prices,
+          staffNames: Object.fromEntries(staff.map((s) => [s.id, s.name])), analyses: [], alerts: [], serverTime: new Date().toISOString() });
+      }
+      case 'createBatch': {
+        if (!manager) return fail('FORBIDDEN');
+        const from = maxTicketNo(state.batches, data.date) + 1;
+        const b = { date: data.date, fromNo: from, toNo: from + Number(data.count) - 1, createdBy: me.id, createdAt: new Date().toISOString() };
+        state.batches.push(b);
+        rev++;
+        return ok({ ...b, tickets: tickets(b) });
+      }
+      case 'listBatches':
+        if (!manager) return fail('FORBIDDEN');
+        return ok({ batches: [...state.batches].reverse().map((b) => ({ ...b, createdByName: staff.find((s) => s.id === b.createdBy)?.name })) });
+      case 'reprintBatch':
+        if (!manager) return fail('FORBIDDEN');
+        return ok({ ...data, tickets: tickets(data) });
+      default:
+        return fail('BAD_REQUEST');
+    }
+  }
+
+  function tickets(b) {
+    const out = [];
+    for (let no = b.fromNo; no <= b.toNo; no++) out.push({ no, qr: encodeQr(b.date, no, SECRET) });
+    return out;
+  }
+
+  return {
+    state,
+    requests,
+    sessions: () => [...state.sessions.values()],
+    session: (id) => state.sessions.get(id),
+    pushedOps: () => requests.filter((r) => r.action === 'push').flatMap((r) => r.data.ops || []),
+    seedBatch(date, fromNo, toNo) { state.batches.push({ date, fromNo, toNo, createdBy: 'st_m', createdAt: new Date().toISOString() }); rev++; },
+    seedSession(s) { rev++; state.sessions.set(s.id, { status: 'in_lot', priceAtIn: 5000, vehicleType: 'motorbike', plateStatus: 'pending', ...s, rev }); },
+    async attach(context) {
+      await context.route(MOCK_URL, async (route) => {
+        const req = route.request();
+        if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } });
+        const body = JSON.parse(req.postData() || '{}');
+        requests.push(body);
+        await route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(handle(body)) });
+      });
+    },
+  };
+}
+
+/** Mở app và đăng nhập (dán URL máy chủ giả ở lần đầu). */
+export async function login(page, name = 'Tuấn', pin = '1234') {
+  await page.goto('/');
+  await page.locator('#staff-name').waitFor();
+  if (await page.locator('#api-url').isVisible()) await page.fill('#api-url', MOCK_URL);
+  await page.fill('#staff-name', name);
+  await page.fill('#pin', pin);
+  await page.click('button[type=submit]');
+  await page.locator('#topbar').waitFor({ state: 'visible' });
+}
+
+/** Giả lập quét QR (camera giả của trình duyệt test không chứa mã QR). */
+export function scan(page, text) {
+  return page.evaluate((t) => document.dispatchEvent(new CustomEvent('gomay:scan', { detail: t })), text);
+}

@@ -73,8 +73,15 @@ function pull(d) {
     sessions: sessions,
     batches: readObjects('TicketBatches').map(strip_).filter(function (b) { return days.indexOf(b.date) >= 0 || b.date > days[0]; }),
     prices: readObjects('Prices').map(strip_),
+    staffNames: staffNames_(),
     analyses: [],
     alerts: [],
     serverTime: new Date().toISOString(),
   };
+}
+
+function staffNames_() {
+  var names = {};
+  readObjects('Staff').forEach(function (s) { names[s.id] = s.name; });
+  return names;
 }

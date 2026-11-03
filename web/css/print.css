@@ -1,0 +1,36 @@
+/* Trang in phiếu QR: A4, 3 cột × 8 hàng = 24 phiếu/trang, đường cắt nét đứt. */
+.print-area { display: grid; gap: 16px; }
+.print-page {
+  background: #fff; color: #000; width: 100%; max-width: 194mm; margin: 0 auto;
+  display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(8, 1fr);
+  aspect-ratio: 194 / 281; border: 1px solid #ccc;
+}
+/* Trên màn hình: xem trước co giãn theo bề ngang (container query). Khi in: kích thước thật bằng mm. */
+.print-page { container-type: inline-size; }
+.ticket { display: flex; gap: 1.2cqw; align-items: center; padding: 1cqw 1.3cqw; border: 1px dashed #777; overflow: hidden; min-height: 0; }
+.ticket .qr { flex: 0 0 13.4cqw; width: 13.4cqw; height: 13.4cqw; }
+.ticket .qr svg { width: 100%; height: 100%; display: block; }
+.ticket-text { flex: 1; min-width: 0; line-height: 1.05; font-family: Arial, Helvetica, sans-serif; }
+.ticket .brand { font-size: 1.5cqw; font-weight: 700; }
+.ticket .no { font-size: 5.4cqw; font-weight: 900; letter-spacing: 0.1cqw; font-variant-numeric: tabular-nums; }
+.ticket .date { font-size: 1.7cqw; font-weight: 700; }
+.ticket .hint { font-size: 1.1cqw; margin-top: 0.4cqw; }
+
+@media print {
+  @page { size: A4; margin: 8mm; }
+  body { background: #fff !important; padding: 0 !important; }
+  #topbar, #toast, .no-print, .bottom-bar { display: none !important; }
+  #screen { padding: 0 !important; max-width: none !important; }
+  .print-area { display: block; }
+  .print-page {
+    width: 194mm; height: 281mm; max-width: none; aspect-ratio: auto; border: 0;
+    page-break-after: always; break-after: page;
+  }
+  .print-page:last-child { page-break-after: auto; break-after: auto; }
+  .ticket { gap: 2.5mm; padding: 2mm 2.5mm; border: 0.3mm dashed #777; }
+  .ticket .qr { flex: 0 0 26mm; width: 26mm; height: 26mm; }
+  .ticket .brand { font-size: 8pt; }
+  .ticket .no { font-size: 30pt; letter-spacing: 1px; }
+  .ticket .date { font-size: 9pt; }
+  .ticket .hint { font-size: 6pt; margin-top: 1mm; }
+}

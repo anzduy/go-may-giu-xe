@@ -6,6 +6,7 @@ var ROUTES = {
   pull: { fn: function (d, a) { return pull(d, a); } },
   createBatch: { fn: function (d, a) { return createBatch(d, a); }, manager: true },
   listBatches: { fn: function (d, a) { return listBatches(d, a); }, manager: true },
+  reprintBatch: { fn: function (d, a) { return reprintBatch(d, a); }, manager: true },
   listStaff: { fn: function (d, a) { return listStaff(d, a); }, manager: true },
   saveStaff: { fn: function (d, a) { return saveStaff(d, a); }, manager: true },
 };
