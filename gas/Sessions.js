@@ -24,7 +24,7 @@ function loadState_() {
 function push(d, auth) {
   var ops = (d.ops || []).slice(0, 50).map(function (op) {
     return { opId: String(op.opId || ''), type: op.type, payload: op.payload || {}, createdAt: op.createdAt,
-      staffId: auth.staff.id, deviceId: auth.deviceId };
+      staffId: auth.staff.id, deviceId: auth.deviceId, role: auth.staff.role };
   });
   return withLock(function () {
     var st = loadState_();
@@ -39,6 +39,7 @@ function push(d, auth) {
       changed.forEach(function (c) { byId[c.id] = c; });
       r.results.forEach(function (res) { if (res.session && byId[res.session.id]) res.session = byId[res.session.id]; });
     }
+    if (r.shifts.length) upsertObjects('Shifts', r.shifts);
     var now = new Date().toISOString();
     appendObjects('Ops', r.results.filter(function (x) { return x.opId; }).map(function (x) {
       var op = ops.filter(function (o) { return o.opId === x.opId; })[0];

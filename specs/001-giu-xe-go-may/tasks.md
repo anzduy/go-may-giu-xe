@@ -165,13 +165,13 @@ rồi mới làm phần code.
 
 ### Tests for User Story 4 ⚠️
 
-- [ ] T051 [P] [US4] E2E test `tests/e2e/lost-ticket.spec.js`: grid shows all in-lot photos newest first; "Mất phiếu" without note blocked; with note → fee 10000, status lost; later scanning that ticket shows "Phiếu đã báo mất, xe đã trả lúc HH:MM"; reassign ticket number on a session
+- [X] T051 [P] [US4] E2E test `tests/e2e/lost-ticket.spec.js`: grid shows all in-lot photos newest first; "Mất phiếu" without note blocked; with note → fee 10000, status lost; later scanning that ticket shows "Phiếu đã báo mất, xe đã trả lúc HH:MM"; reassign ticket number on a session
 
 ### Implementation for User Story 4
 
-- [ ] T052 [US4] Implement `lostCheckout` and `reassignTicket` rules in `web/shared/server-ops.js` (with cases in `tests/unit/server-ops.test.js`) (`note` required → else `NOTE_REQUIRED`; `fee = lostFee`; reassigned number must not collide with another `in_lot` session); audit `lost` / `reassign`
-- [ ] T053 [US4] Implement `web/js/screens/lot.js`: grid of in-lot photos (ticket no, in time) sorted by `inAt` desc, search box filtering by partial plate or ticket no, tap → `session-detail`
-- [ ] T054 [US4] Add actions in `web/js/screens/lot.js`: "Trả xe – mất phiếu" (mandatory note, shows lostFee, captures out photo, enqueues `lostCheckout`) and "Gán lại số phiếu" (numeric input + note, enqueues `reassignTicket`)
+- [X] T052 [US4] Implement `lostCheckout` and `reassignTicket` rules in `web/shared/server-ops.js` (with cases in `tests/unit/server-ops.test.js`) (`note` required → else `NOTE_REQUIRED`; `fee = lostFee`; reassigned number must not collide with another `in_lot` session); audit `lost` / `reassign`
+- [X] T053 [US4] Implement `web/js/screens/lot.js`: grid of in-lot photos (ticket no, in time) sorted by `inAt` desc, search box filtering by partial plate or ticket no, tap → `session-detail`
+- [X] T054 [US4] Add actions in `web/js/screens/lot.js`: "Trả xe – mất phiếu" (mandatory note, shows lostFee, captures out photo, enqueues `lostCheckout`) and "Gán lại số phiếu" (numeric input + note, enqueues `reassignTicket`)
 
 **Checkpoint**: Xử lý được mất phiếu và đưa nhầm phiếu
 
@@ -185,14 +185,14 @@ rồi mới làm phần code.
 
 ### Tests for User Story 5 ⚠️
 
-- [ ] T055 [P] [US5] Unit test `tests/unit/report.test.js`: 9 returned × 5000 + 1 lost × 10000 = 55000; counts by vehicle type; overnight (`tồn qua đêm`) flag; skipped numbers; provisional and conflict counts; alerts total / unresolved
+- [X] T055 [P] [US5] Unit test `tests/unit/report.test.js`: 9 returned × 5000 + 1 lost × 10000 = 55000; counts by vehicle type; overnight (`tồn qua đêm`) flag; skipped numbers; provisional and conflict counts; alerts total / unresolved
 
 ### Implementation for User Story 5
 
-- [ ] T056 [US5] Implement `web/shared/report.js` `summarize({sessions, alerts, batches, from, to})` → `{count, revenue, byType, lost, provisional, conflicts, inLot, overnight, ticketsPrinted, ticketsUsed, skipped, alerts, alertsOpen}`; revenue counted on checkout time; add to `scripts/build-gas.mjs` order
-- [ ] T057 [US5] Implement `closeShift` op and `report`, `setPrices` actions in `gas/Sessions.js` / `gas/Admin.js` (report `groupBy` day|shift, manager only; setPrices appends a new `Prices` row, never edits old rows, audit `set_price`)
-- [ ] T058 [US5] Implement `web/js/screens/shift.js`: "Chốt ca" shows summary (from local data, then server-confirmed), list of remaining in-lot cars with photos
-- [ ] T059 [US5] Implement `web/js/screens/admin.js` (manager): report by day/week/month with per-shift and staff breakdown, price settings form, staff list (add, reset PIN, deactivate), conflicts list, cancel session with mandatory note (`cancel` op)
+- [X] T056 [US5] Implement `web/shared/report.js` `summarize({sessions, alerts, batches, from, to})` → `{count, revenue, byType, lost, provisional, conflicts, inLot, overnight, ticketsPrinted, ticketsUsed, skipped, alerts, alertsOpen}`; revenue counted on checkout time; add to `scripts/build-gas.mjs` order
+- [X] T057 [US5] Implement `closeShift` op and `report`, `setPrices` actions in `gas/Sessions.js` / `gas/Admin.js` (report `groupBy` day|shift, manager only; setPrices appends a new `Prices` row, never edits old rows, audit `set_price`)
+- [X] T058 [US5] Implement `web/js/screens/shift.js`: "Chốt ca" shows summary (from local data, then server-confirmed), list of remaining in-lot cars with photos
+- [X] T059 [US5] Implement `web/js/screens/admin.js` (manager): report by day/week/month with per-shift and staff breakdown, price settings form, staff list (add, reset PIN, deactivate), conflicts list, cancel session with mandatory note (`cancel` op)
 
 **Checkpoint**: Chủ sân đối chiếu được tiền từ xa
 

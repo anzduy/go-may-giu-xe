@@ -11,18 +11,23 @@ import * as checkout from './screens/checkout.js';
 import * as lot from './screens/lot.js';
 import * as sessionDetail from './screens/session-detail.js';
 import * as print from './screens/print.js';
+import * as shift from './screens/shift.js';
+import * as admin from './screens/admin.js';
 
 const ROUTES = {
   checkin: { screen: checkin, label: 'Gửi xe', gate: true },
   checkout: { screen: checkout, label: 'Trả xe', gate: true },
   lot: { screen: lot, label: 'Trong bãi' },
+  shift: { screen: shift, label: 'Chốt ca' },
   print: { screen: print, label: 'In phiếu', manager: true },
+  admin: { screen: admin, label: 'Quản lý', manager: true },
   session: { screen: sessionDetail, hidden: true },
 };
 
 const root = document.getElementById('screen');
 let cleanup = null;
 let renderToken = 0;
+let lastKey = null;
 
 async function updateCounters() {
   const sessions = await db.allSessions();
@@ -45,7 +50,6 @@ function renderNav(current) {
 async function route() {
   const my = ++renderToken;
   if (cleanup) { try { await cleanup(); } catch { /* bỏ qua */ } cleanup = null; }
-  if (!/^#lot/.test(location.hash)) hideToast();
   if (!ctx.staff) {
     document.getElementById('topbar').hidden = true;
     cleanup = await login.render(root, { onLogin });
@@ -55,6 +59,10 @@ async function route() {
   let r = ROUTES[key];
   if (!r || (r.manager && !ctx.isManager())) { key = 'checkin'; r = ROUTES.checkin; }
   if (r.gate) await db.setMeta('lastMode', key);
+  // Đổi sang màn hình khác thì ẩn thông báo cũ; tải lại cùng màn hình (sau khi lưu) thì giữ thông báo.
+  // Riêng "Không khớp" ở Trả xe → Trong bãi: giữ lời nhắc kiểm tra giấy tờ.
+  if (lastKey && key !== lastKey && !(lastKey === 'checkout' && key === 'lot')) hideToast();
+  lastKey = key;
   document.getElementById('topbar').hidden = false;
   renderNav(key);
   root.replaceChildren();
@@ -75,6 +83,7 @@ async function onLogin({ token, staff, qrSecret, serverTime }) {
   await db.setMeta('qrSecret', ctx.qrSecret);
   await db.setMeta('clockOffset', ctx.clockOffset);
   await db.setMeta('lastRev', 0); // lấy lại đủ dữ liệu sau khi đăng nhập
+  await db.setMeta('shiftStart', ctx.nowIso()); // mỗi lần đăng nhập là bắt đầu ca mới
   sync.start();
   const last = await db.getMeta('lastMode', 'checkin');
   if (location.hash.slice(1).split('?')[0] === last) route(); else location.hash = `#${last}`;

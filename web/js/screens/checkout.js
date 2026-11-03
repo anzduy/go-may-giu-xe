@@ -106,7 +106,7 @@ export async function render(root, ctx) {
     scanning(false);
     const items = await Promise.all(matches.map(async (s) => {
       const btn = h('button', { type: 'button', class: 'item', style: 'width:100%' },
-        asyncPhoto(s.inPhotoId, 'Ảnh lúc vào', db.getPhotoBlob),
+        asyncPhoto(s.inPhotoId, 'Ảnh lúc vào', db.getPhotoBlob, { zoom: false }),
         h('div', {}, h('div', { class: 'info-line' }, `Phiếu ${formatNo(s.ticketNo)}`),
           h('div', { class: 'muted' }, `Ngày ${dateVN(s.ticketDate)} · vào ${timeVN(s.inAt)}`)));
       btn.addEventListener('click', () => confirm(s));

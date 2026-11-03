@@ -79,12 +79,14 @@ async function pushOnce() {
   for (const res of r.data.results) {
     done.push(res.opId); // applied / duplicate / conflict / rejected đều đã được máy chủ xử lý xong
     if (res.session) sessions.push(res.status === 'rejected' ? { ...res.session, syncError: res.error } : res.session);
+    if (res.shift) await db.setMeta(`shift:${res.shift.id}`, res.shift); // máy chủ xác nhận chốt ca
   }
   await db.deleteOps(done);
   const stillPending = pendingSessionIds(await db.outboxAll());
   const merged = [];
   for (const s of sessions) merged.push(mergeServerSession(await db.getSession(s.id), s, stillPending));
   if (merged.length) await db.putSessions(merged);
+  if (r.data.results.some((x) => x.shift)) emit('sync:changed', { count: 0 });
   return true;
 }
 

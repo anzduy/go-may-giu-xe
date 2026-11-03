@@ -1,4 +1,4 @@
-// Chức năng quản lý: tạo bộ phiếu ngày (phần dữ liệu; giao diện in ở web/js/screens/print.js).
+// Chức năng quản lý: tạo bộ phiếu ngày (giao diện in ở web/js/screens/print.js), báo cáo, bảng giá.
 
 function createBatch(d, auth) {
   var date = String(d.date || '');
@@ -37,4 +37,36 @@ function reprintBatch(d) {
   var tickets = [];
   for (var no = fromNo; no <= toNo; no++) tickets.push({ no: no, qr: encodeQr(date, no, secret) });
   return { date: date, fromNo: fromNo, toNo: toNo, tickets: tickets };
+}
+
+/** Báo cáo theo ngày hoặc theo ca, từ ngày `from` đến `to` (YYYYMMDD). Chỉ quản lý. */
+function report(d) {
+  var from = String(d.from || ''), to = String(d.to || '');
+  if (!/^\d{8}$/.test(from) || !/^\d{8}$/.test(to) || from > to) throw err_('BAD_REQUEST', 'Khoảng ngày không hợp lệ');
+  var names = {};
+  readObjects('Staff').forEach(function (s) { names[s.id] = s.name; });
+  var rows = reportRows({
+    sessions: readObjects('Sessions').map(strip_),
+    alerts: readObjects('Alerts').map(strip_),
+    batches: readObjects('TicketBatches').map(strip_),
+    shifts: readObjects('Shifts').map(strip_),
+    from: from, to: to, groupBy: d.groupBy === 'shift' ? 'shift' : 'day', staffNames: names,
+  });
+  return { rows: rows, staffNames: names };
+}
+
+/** Đổi giá: thêm dòng giá mới có hiệu lực từ bây giờ (giữ lịch sử, không sửa dòng cũ). */
+function setPrices(d, auth) {
+  var row = { effectiveFrom: new Date().toISOString(), setBy: auth.staff.id };
+  ['motorbike', 'ebike', 'bicycle', 'lostFee'].forEach(function (k) {
+    var v = Number(d[k]);
+    if (!(v >= 0 && v <= 1000000) || Math.round(v) !== v) throw err_('BAD_REQUEST', 'Giá không hợp lệ: ' + k);
+    row[k] = v;
+  });
+  withLock(function () {
+    appendObject('Prices', row);
+    nextRev();
+    audit(auth.staff.id, auth.deviceId, 'set_price', '', row);
+  });
+  return { prices: readObjects('Prices').map(strip_) };
 }

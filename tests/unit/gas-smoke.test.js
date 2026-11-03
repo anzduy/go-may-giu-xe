@@ -8,7 +8,7 @@ import crypto from 'node:crypto';
 
 function fakeGoogle() {
   const sheets = new Map();
-  const makeSheet = (name) => {
+  const makeSheet = (name, target = sheets) => {
     const data = [];
     const sh = {
       name,
@@ -32,7 +32,7 @@ function fakeGoogle() {
       setFrozenRows() {},
       clearContents() { data.length = 0; },
     };
-    sheets.set(name, sh);
+    target.set(name, sh);
     return sh;
   };
   const props = new Map();
@@ -75,7 +75,7 @@ function fakeGoogle() {
       id: `ss-${spreadsheets.size + 1}`, name, sheets: own,
       getId() { return this.id; },
       getSheetByName: (n) => own.get(n) || null,
-      insertSheet: (n) => { const sh = makeSheet(n); sheets.delete(n); own.set(n, sh); return sh; },
+      insertSheet: (n) => makeSheet(n, own),
     };
     spreadsheets.set(ss.id, ss);
     return ss;
@@ -278,5 +278,35 @@ describe('Apps Script (giả lập)', () => {
     const arch = [...fake.spreadsheets.values()].find((x) => x.name.startsWith('GoMay-GiuXe-LuuTru-'));
     expect(arch.sheets.get('Sessions').data.some((row) => row[0] === 'old1')).toBe(true);
     expect(sh.data.some((row) => row[0] === 'ses9')).toBe(true); // dữ liệu mới giữ nguyên
+  });
+
+  it('US4/US5: mất phiếu, hủy lượt (chỉ quản lý), chốt ca lưu vào Shifts, báo cáo, đổi giá', () => {
+    const inAt = new Date().toISOString();
+    const mkCreate = (id, no) => ({ opId: `c-${id}`, type: 'createSession', createdAt: inAt,
+      payload: { id, ticketDate: today(), ticketNo: no, noTicket: false, vehicleType: 'motorbike', inAt, inPhotoId: `p-${id}` } });
+    call('push', { ops: [mkCreate('L1', 30), mkCreate('L2', 31)] }, staffToken, 'dA');
+    const lost = call('push', { ops: [{ opId: 'lost1', type: 'lostCheckout', createdAt: inAt, payload: { sessionId: 'L1', outAt: inAt, outPhotoId: 'po', note: 'đã xem cà vẹt' } }] }, staffToken, 'dA');
+    expect(lost.data.results[0].session).toMatchObject({ status: 'lost', fee: 10000 });
+    expect(call('push', { ops: [{ opId: 'can1', type: 'cancel', createdAt: inAt, payload: { sessionId: 'L2', note: 'nhầm' } }] }, staffToken, 'dA').data.results[0].error).toBe('FORBIDDEN');
+    expect(call('push', { ops: [{ opId: 'can2', type: 'cancel', createdAt: inAt, payload: { sessionId: 'L2', note: 'nhầm' } }] }, manager, 'dB').data.results[0].session.status).toBe('cancelled');
+
+    const start = new Date(Date.now() - 3600000).toISOString();
+    const end = new Date(Date.now() + 1000).toISOString();
+    const cs0 = call('push', { ops: [{ opId: 'shift1', type: 'closeShift', createdAt: end, payload: { shiftId: 'sh1', startAt: start, endAt: end } }] }, staffToken, 'dA');
+    const cs = cs0;
+    expect(cs.data.results[0].shift.summary).toMatchObject({ lost: 1, revenue: 10000 });
+    expect(gas.findBy('Shifts', 'id', 'sh1').summary.revenue).toBe(10000);
+
+    expect(call('report', { from: today(), to: today() }, staffToken).error.code).toBe('FORBIDDEN');
+    const rep = call('report', { from: today(), to: today(), groupBy: 'day' }, manager).data;
+    expect(rep.rows).toHaveLength(1);
+    expect(rep.rows[0].revenue).toBe(15000); // lượt 001 trả 5.000đ + mất phiếu 10.000đ
+    expect(call('report', { from: today(), to: today(), groupBy: 'shift' }, manager).data.rows[0]).toMatchObject({ key: 'sh1', label: expect.stringContaining('Tuấn') });
+
+    expect(call('setPrices', { motorbike: 6000, ebike: 6000, bicycle: 4000, lostFee: 15000 }, staffToken).error.code).toBe('FORBIDDEN');
+    const pr = call('setPrices', { motorbike: 6000, ebike: 6000, bicycle: 4000, lostFee: 15000 }, manager).data.prices;
+    expect(pr).toHaveLength(2); // dòng giá cũ vẫn giữ
+    const actions = fake.sheets.get('Audit').data.slice(1).map((r) => r[3]);
+    expect(actions).toEqual(expect.arrayContaining(['lost', 'cancel', 'close_shift', 'set_price']));
   });
 });

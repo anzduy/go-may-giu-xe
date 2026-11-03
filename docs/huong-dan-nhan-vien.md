@@ -35,6 +35,15 @@
   mất mạng) → kiểm tra giấy tờ xe → **Trả xe tạm** → ghi chú lý do → app chụp ảnh và tự ghép khi có mạng.
 - **Có 2 xe cùng số** (một xe gửi từ hôm qua): app cho chọn theo **ảnh và ngày**.
 
+## Khách mất phiếu
+
+1. Mục **Trong bãi** → tìm xe khách chỉ (gõ vài số cuối biển số cho nhanh) → **chạm vào ảnh xe**.
+2. **Kiểm tra giấy tờ xe** (cà vẹt, CCCD) → bấm **Trả xe – mất phiếu**.
+3. Ghi chú bắt buộc (đã xem giấy tờ gì, tên khách) → **Chụp & trả xe** → thu **10.000đ**.
+
+**Lúc gửi lỡ đưa nhầm phiếu** (khách cầm phiếu số khác với số app ghi): tìm đúng xe trong **Trong bãi** →
+chạm vào xe → **Gán lại số phiếu** → gõ số trên phiếu khách cầm + ghi chú.
+
 ## Ảnh và biển số (tự động)
 
 - Ảnh chụp được **lưu trên máy ngay**, rồi app tự **sao lưu lên cloud** khi có mạng (góc trên: "Ảnh chờ sao lưu: N").
@@ -50,4 +59,7 @@ App **vẫn gửi/trả xe bình thường**. Góc trên hiện "Mất mạng" v
 
 ## Cuối ca
 
-Bấm **Thoát** ở thanh trên (app nhắc nếu còn dữ liệu chưa gửi). *(Chốt ca và báo cáo tiền có ở bản sau.)*
+1. Mục **Chốt ca** → xem **Tiền cần nộp** (tiền các xe mình đã trả trong ca) và số xe còn trong bãi.
+2. Đếm tiền mặt cho khớp → bấm **CHỐT CA** → nộp tiền cho chủ sân.
+3. Có mạng thì app hiện "✓ Máy chủ đã xác nhận". Mất mạng vẫn chốt được, app tự gửi khi có mạng.
+4. Bấm **Thoát** (app nhắc nếu còn dữ liệu chưa gửi).

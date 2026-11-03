@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const order = ['ticket', 'pricing', 'sessions', 'vision', 'merge', 'server-ops', 'report', 'compare'];
+const order = ['ticket', 'pricing', 'sessions', 'vision', 'merge', 'report', 'server-ops', 'compare'];
 const parts = ['// GENERATED from web/shared — do not edit', ''];
 
 for (const name of order) {

@@ -115,3 +115,54 @@ describe('setPlate', () => {
     expect(r.audits[0].action).toBe('set_plate');
   });
 });
+
+describe('US4: trả xe mất phiếu, gán lại số', () => {
+  it('mất phiếu: bắt buộc ghi chú, thu phí mất phiếu theo bảng giá, có nhật ký', () => {
+    const st = state();
+    applyPush(st, [create('o1', 's1', 5)]);
+    const noNote = applyPush(st, [mk('o2', 'lostCheckout', { sessionId: 's1', outAt: at(60), outPhotoId: 'out1', note: ' ' })]);
+    expect(noNote.results[0]).toMatchObject({ status: 'rejected', error: 'NOTE_REQUIRED' });
+    const r = applyPush(st, [mk('o3', 'lostCheckout', { sessionId: 's1', outAt: at(60), outPhotoId: 'out1', note: 'đã xem cà vẹt' })]);
+    expect(r.results[0].session).toMatchObject({ status: 'lost', fee: 10000, note: 'đã xem cà vẹt', outPhotoId: 'out1' });
+    expect(r.audits[0].action).toBe('lost');
+  });
+  it('phí mất phiếu theo bảng giá quản lý đặt', () => {
+    const st = state();
+    st.prices.push({ effectiveFrom: '2000-01-01T00:00:00Z', motorbike: 5000, ebike: 5000, bicycle: 5000, lostFee: 15000 });
+    applyPush(st, [create('o1', 's1', 5)]);
+    const r = applyPush(st, [mk('o2', 'lostCheckout', { sessionId: 's1', outAt: at(60), outPhotoId: 'o', note: 'x' })]);
+    expect(r.results[0].session.fee).toBe(15000);
+  });
+  it('gán lại số phiếu: cần ghi chú, không trùng xe khác trong bãi, gỡ cờ trùng số', () => {
+    const st = state();
+    applyPush(st, [create('o1', 's1', 5), create('o2', 's2', 5, 3), create('o3', 's3', 8, 4)]);
+    expect(st.sessions.get('s2').conflict).toBe('duplicate_ticket');
+    expect(applyPush(st, [mk('o4', 'reassignTicket', { sessionId: 's2', ticketNo: 6 })]).results[0].error).toBe('NOTE_REQUIRED');
+    expect(applyPush(st, [mk('o5', 'reassignTicket', { sessionId: 's2', ticketNo: 8, note: 'x' })]).results[0].error).toBe('TICKET_IN_USE');
+    const r = applyPush(st, [mk('o6', 'reassignTicket', { sessionId: 's2', ticketNo: 6, note: 'khách cầm phiếu 006' })]);
+    expect(r.results[0].session).toMatchObject({ ticketNo: 6, status: 'in_lot' });
+    expect(r.results[0].session.conflict).toBeUndefined();
+    expect(r.audits[0]).toMatchObject({ action: 'reassign', detail: { from: 5, to: 6 } });
+  });
+});
+
+describe('US5: hủy lượt, chốt ca', () => {
+  it('chỉ quản lý được hủy lượt, bắt buộc ghi chú', () => {
+    const st = state();
+    applyPush(st, [create('o1', 's1', 5)]);
+    expect(applyPush(st, [mk('o2', 'cancel', { sessionId: 's1', note: 'nhập nhầm' }, { role: 'staff' })]).results[0].error).toBe('FORBIDDEN');
+    expect(applyPush(st, [mk('o3', 'cancel', { sessionId: 's1' }, { role: 'manager' })]).results[0].error).toBe('NOTE_REQUIRED');
+    const r = applyPush(st, [mk('o4', 'cancel', { sessionId: 's1', note: 'nhập nhầm' }, { role: 'manager' })]);
+    expect(r.results[0].session).toMatchObject({ status: 'cancelled', note: 'nhập nhầm' });
+    expect(st.sessions.has('s1')).toBe(true); // không xóa
+  });
+  it('chốt ca: máy chủ tính tổng ca của nhân viên đó', () => {
+    const st = state();
+    applyPush(st, [create('o1', 's1', 1, 0), create('o2', 's2', 2, 1),
+      mk('o3', 'checkout', { sessionId: 's1', outAt: at(30), outPhotoId: 'x' })]);
+    const r = applyPush(st, [mk('o4', 'closeShift', { shiftId: 'sh1', startAt: at(0), endAt: at(59) }, { createdAt: at(59) })]);
+    expect(r.results[0].status).toBe('applied');
+    expect(r.shifts[0]).toMatchObject({ id: 'sh1', staffId: 'st1', summary: { checkins: 2, count: 1, revenue: 5000, inLot: 1 } });
+    expect(r.audits[0].action).toBe('close_shift');
+  });
+});

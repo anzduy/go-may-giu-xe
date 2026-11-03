@@ -3,6 +3,7 @@
 import { applyPush, newState } from '../../../web/shared/server-ops.js';
 import { encodeQr, maxTicketNo, dateKey } from '../../../web/shared/ticket.js';
 import { applyInAnalysis } from '../../../web/shared/vision.js';
+import { reportRows } from '../../../web/shared/report.js';
 
 export const MOCK_URL = 'https://mock.gomay.test/macros/s/test/exec';
 export const SECRET = 'bi-mat-thu-nghiem';
@@ -30,6 +31,7 @@ export function createMock() {
     if (action === 'login') {
       const s = staff.find((x) => x.name.toLowerCase() === String(data.staffName || '').trim().toLowerCase() && x.pin === data.pin);
       if (!s) return fail('BAD_LOGIN', 'Sai tên hoặc mã PIN');
+      if (s.active === false) return fail('STAFF_INACTIVE', 'Tài khoản đã bị khóa');
       const t = `tok${++n}`;
       tokens.set(t, s);
       return ok({ token: t, staff: { id: s.id, name: s.name, role: s.role }, qrSecret: SECRET, serverTime: new Date().toISOString() });
@@ -39,7 +41,7 @@ export function createMock() {
     const manager = me.role === 'manager';
     switch (action) {
       case 'push': {
-        const ops = (data.ops || []).map((o) => ({ ...o, staffId: me.id, deviceId }));
+        const ops = (data.ops || []).map((o) => ({ ...o, staffId: me.id, deviceId, role: me.role }));
         const r = applyPush(state, ops);
         if (r.changed.length) {
           rev++;
@@ -66,6 +68,28 @@ export function createMock() {
       case 'getPhoto': {
         const ph = photos.get(data.photoId);
         return ph ? ok({ jpegBase64: ph.jpegBase64, kind: ph.kind, sessionId: ph.sessionId, takenAt: ph.takenAt }) : fail('PHOTO_NOT_FOUND');
+      }
+      case 'report':
+        if (!manager) return fail('FORBIDDEN');
+        return ok({ rows: reportRows({ sessions: [...state.sessions.values()], batches: state.batches, shifts: [...state.shifts.values()],
+          from: data.from, to: data.to, groupBy: data.groupBy, staffNames: Object.fromEntries(staff.map((x) => [x.id, x.name])) }) });
+      case 'setPrices':
+        if (!manager) return fail('FORBIDDEN');
+        state.prices.push({ effectiveFrom: new Date().toISOString(), motorbike: data.motorbike, ebike: data.ebike, bicycle: data.bicycle, lostFee: data.lostFee, setBy: me.id });
+        rev++;
+        return ok({ prices: state.prices });
+      case 'listStaff':
+        if (!manager) return fail('FORBIDDEN');
+        return ok({ staff: staff.map(({ id, name: nm, role, active = true }) => ({ id, name: nm, role, active })) });
+      case 'saveStaff': {
+        if (!manager) return fail('FORBIDDEN');
+        let st = data.id && staff.find((x) => x.id === data.id);
+        if (!st) {
+          if (staff.some((x) => x.name.toLowerCase() === String(data.name).toLowerCase())) return fail('BAD_REQUEST', 'Tên nhân viên đã tồn tại');
+          st = { id: `st_${staff.length + 1}`, name: data.name, role: data.role, pin: data.pin, active: true };
+          staff.push(st);
+        } else Object.assign(st, { name: data.name, role: data.role, active: data.active !== false, ...(data.pin ? { pin: data.pin } : {}) });
+        return ok({ staff: { id: st.id, name: st.name, role: st.role, active: st.active } });
       }
       case 'createBatch': {
         if (!manager) return fail('FORBIDDEN');
@@ -98,6 +122,7 @@ export function createMock() {
     sessions: () => [...state.sessions.values()],
     session: (id) => state.sessions.get(id),
     photos,
+    staff,
     setAnalyze(fn) { analyze = fn; },
     pushedOps: () => requests.filter((r) => r.action === 'push').flatMap((r) => r.data.ops || []),
     seedBatch(date, fromNo, toNo) { state.batches.push({ date, fromNo, toNo, createdBy: 'st_m', createdAt: new Date().toISOString() }); rev++; },

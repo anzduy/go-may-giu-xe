@@ -20,7 +20,14 @@ máy khác / máy mới **tự tải ảnh từ Drive**; **AI đọc biển số
 hình trả xe; tìm xe theo vài số cuối biển số; sửa tay biển số; dọn ảnh cũ trên máy (chỉ ảnh đã sao lưu > 7 ngày)
 và dọn Drive hằng đêm (ảnh > 30 ngày; dữ liệu > 90 ngày dời sang file lưu trữ).
 
-⏳ **Chưa có** (bản sau): trả xe mất phiếu (US4), chốt ca/báo cáo (US5), cảnh báo AI khi ảnh ra khác ảnh vào (US7).
+✅ **US4 — mất phiếu**: chọn xe trong lưới ảnh → trả xe mất phiếu (ghi chú bắt buộc, thu phí mất phiếu, chụp ảnh ra);
+gán lại số phiếu khi lúc gửi đưa nhầm phiếu.
+
+✅ **US5 — chốt ca & quản lý**: nhân viên **chốt ca** thấy ngay tiền cần nộp (chạy cả khi mất mạng, máy chủ xác nhận
+sau); chủ sân vào **Quản lý**: báo cáo theo ngày/ca (hôm nay, 7 ngày, tháng này), **đổi giá**, **thêm/khóa nhân viên,
+đổi PIN**, xem lượt có xung đột và **hủy lượt** (bắt buộc lý do, không xóa dữ liệu).
+
+⏳ **Chưa có** (bản sau): cảnh báo AI khi ảnh ra khác ảnh vào — thiếu mũ, khác màu xe (US7).
 
 ## Cài đặt (chủ sân làm một lần)
 
@@ -66,8 +73,8 @@ Thuộc tính tập lệnh (Script Properties)** và thêm:
 1. Mở link → lần đầu dán **URL `/exec`** vào ô "Địa chỉ máy chủ" → đăng nhập **Quản lý** + mã PIN ở bước 1.4.
 2. **Thêm vào màn hình chính** (iPhone: Safari → Chia sẻ → Thêm vào MH chính; Android: Chrome → ⋮ → Cài đặt
    ứng dụng). Cho phép **Camera**.
-3. Tạo tài khoản nhân viên (màn hình quản lý nhân viên có ở bản sau): trong Apps Script mở `Setup.js`, sửa
-   tên / mã PIN trong hàm **`themNhanVien`** → chọn hàm đó → **Chạy**. Lặp lại cho từng người.
+3. Đổi mã PIN của chính mình và tạo tài khoản nhân viên ngay trên app: **Quản lý → Nhân viên**.
+   (Dự phòng: hàm **`themNhanVien`** trong `Setup.js` của Apps Script.)
 
 Hướng dẫn cho nhân viên: [`docs/huong-dan-nhan-vien.md`](docs/huong-dan-nhan-vien.md).
 
@@ -75,8 +82,8 @@ Hướng dẫn cho nhân viên: [`docs/huong-dan-nhan-vien.md`](docs/huong-dan-n
 
 ```bash
 npm install
-npm test            # 98 unit test: logic phiếu, giá, đồng bộ, AI đọc ảnh, Apps Script chạy giả lập
-npm run test:e2e    # 18 test đầu-cuối trên Chromium với camera giả (2 máy, mất mạng, sao lưu ảnh)
+npm test            # 111 unit test: logic phiếu, giá, đồng bộ, AI đọc ảnh, Apps Script chạy giả lập
+npm run test:e2e    # 23 test đầu-cuối trên Chromium với camera giả (2 máy, mất mạng, sao lưu ảnh)
 npm run serve       # chạy thử tại http://localhost:5173
 npm run build:gas   # sinh gas/Shared.js từ web/shared/ (chạy sau khi sửa web/shared/)
 ```

@@ -10,6 +10,8 @@ var ROUTES = {
   listBatches: { fn: function (d, a) { return listBatches(d, a); }, manager: true },
   reprintBatch: { fn: function (d, a) { return reprintBatch(d, a); }, manager: true },
   listStaff: { fn: function (d, a) { return listStaff(d, a); }, manager: true },
+  report: { fn: function (d, a) { return report(d, a); }, manager: true },
+  setPrices: { fn: function (d, a) { return setPrices(d, a); }, manager: true },
   saveStaff: { fn: function (d, a) { return saveStaff(d, a); }, manager: true },
 };
 
