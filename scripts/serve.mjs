@@ -16,6 +16,8 @@ const types = {
   '.png': 'image/png',
   '.svg': 'image/svg+xml',
   '.jpg': 'image/jpeg',
+  '.wasm': 'application/wasm',
+  '.onnx': 'application/octet-stream',
 };
 
 http.createServer((req, res) => {

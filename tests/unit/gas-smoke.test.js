@@ -485,6 +485,34 @@ describe('Apps Script (giả lập)', () => {
     props.setProperty('VISION_API_KEY', '');
   });
 
+  it('Điện thoại tự đọc biển số gửi kèm ảnh (không cần khóa AI): gắn biển số, so sánh, cảnh báo; ảnh tồn gửi bằng reportAnalysis', () => {
+    const props = gas.PropertiesService.getScriptProperties();
+    props.setProperty('VISION_API_KEY', '');
+    const nFetch = fake.fetches.length;
+    const dev = (plate, color) => ({ plate, color, vehicleType: 'motorbike', helmetsOnVehicle: 0, helmetsWorn: 0, otherItems: [],
+      confidence: { plate: 0.95, color: 0.8, helmets: 0 }, status: 'done', source: 'device', region: 'Vietnam' });
+    const t = new Date().toISOString();
+    call('push', { ops: [{ opId: 'dev-c', type: 'createSession', createdAt: t,
+      payload: { id: 'DEV', ticketDate: today(), ticketNo: 120, noTicket: false, vehicleType: 'motorbike', inAt: t, inPhotoId: 'DEVin' } }] }, manager, 'dA');
+    const upIn = call('uploadPhoto', { photoId: 'DEVin', sessionId: 'DEV', kind: 'in', takenAt: t, jpegBase64: 'eA==', analysis: dev('77-C1 399.97', 'đen') }, manager, 'dA');
+    expect(upIn.ok).toBe(true);
+    expect(fake.fetches.length).toBe(nFetch); // không gọi AI trên mạng
+    expect(gas.findBy('Photos', 'id', 'DEVin')).toMatchObject({ analysisStatus: 'done', plate: '77-C1 399.97', color: 'đen' });
+    expect(gas.findBy('Sessions', 'id', 'DEV')).toMatchObject({ plate: '77-C1 399.97', plateStatus: 'read' });
+    // kết quả hỏng → bỏ qua, ảnh vẫn lưu
+    call('push', { ops: [{ opId: 'dev-o', type: 'checkout', createdAt: t, payload: { sessionId: 'DEV', outAt: t, outPhotoId: 'DEVout' } }] }, manager, 'dB');
+    expect(call('uploadPhoto', { photoId: 'DEVout', sessionId: 'DEV', kind: 'out', takenAt: t, jpegBase64: 'eA==', analysis: { plate: 1 } }, manager, 'dB').ok).toBe(true);
+    expect(gas.findBy('Photos', 'id', 'DEVout').analysisStatus).toBe('disabled');
+    // ảnh tồn: điện thoại đọc sau rồi báo lên → so sánh, cảnh báo khác biển số
+    expect(call('reportAnalysis', { photoId: 'DEVout', analysis: dev('59X1-123.45', 'đen') }, manager, 'dB').data).toEqual({ ok: true });
+    const kinds = gas.readObjects('Alerts').filter((a) => a.sessionId === 'DEV').map((a) => a.kind);
+    expect(kinds).toEqual(['plate_mismatch']); // không cảnh báo mũ (điện thoại không đếm mũ)
+    // báo lại lần nữa (máy khác) → không ghi đè
+    expect(call('reportAnalysis', { photoId: 'DEVout', analysis: dev('11A-111.11', 'đỏ') }, manager, 'dA').data).toEqual({ skipped: true });
+    expect(call('reportAnalysis', { photoId: 'khong-co', analysis: dev('1', 'đen') }, manager, 'dA').error.code).toBe('PHOTO_NOT_FOUND');
+    expect(call('reportAnalysis', { photoId: 'DEVout' }, manager, 'dA').error.code).toBe('BAD_REQUEST');
+  });
+
   it('Google khai tử model gemini-2.5-flash (404) → tự tìm model flash mới nhất, nhớ lại; ảnh đã "dừng thử" được đọc lại', () => {
     const props = gas.PropertiesService.getScriptProperties();
     props.setProperty('VISION_API_KEY', 'khoa-dung');

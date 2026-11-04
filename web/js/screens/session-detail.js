@@ -89,8 +89,8 @@ const AI_ERR = {
   REFUSAL: 'AI từ chối ảnh này', BAD_JSON: 'AI trả kết quả lỗi', EMPTY: 'AI không trả kết quả',
 };
 const AI_STATUS = {
-  disabled: () => 'AI chưa bật — chủ sân thêm VISION_API_KEY trong Apps Script (ảnh sẽ được đọc lại trong 5 phút)',
-  pending: () => 'Đang chờ AI đọc…',
+  disabled: () => 'Chưa đọc được biển số ảnh này (máy quá cũ hoặc chưa tải xong bộ đọc biển số — app sẽ tự đọc lại)',
+  pending: () => 'Đang chờ đọc biển số…',
   failed: (a) => `AI lỗi: ${AI_ERR[a.analysisError] || a.analysisError || 'không rõ'} — tự thử lại mỗi 5 phút`,
   gave_up: (a) => `AI lỗi nhiều lần (${AI_ERR[a.analysisError] || a.analysisError || 'không rõ'}) — đã dừng thử`,
 };
@@ -100,23 +100,34 @@ function analysisLine(a) {
   if (AI_STATUS[a.analysisStatus]) return h('div', { class: 'warn-text ai-status' }, AI_STATUS[a.analysisStatus](a));
   return h('div', {},
     h('div', {}, `Màu: ${a.color} (${pct(a.confidence.color)})`),
-    h('div', {}, `Mũ trên xe: ${a.helmetsOnVehicle} · đội: ${a.helmetsWorn} (${pct(a.confidence.helmets)})`),
+    Number(a.confidence.helmets) > 0 || a.analysisStatus === 'manual'
+      ? h('div', {}, `Mũ trên xe: ${a.helmetsOnVehicle} · đội: ${a.helmetsWorn} (${pct(a.confidence.helmets)})`)
+      : h('div', { class: 'muted' }, 'Mũ: không đếm (đọc trên điện thoại)'),
     a.plate ? h('div', {}, `Biển số: ${a.plate} (${pct(a.confidence.plate)})`) : null,
     a.otherItems && a.otherItems.length ? h('div', { class: 'muted' }, `Đồ khác: ${a.otherItems.join(', ')}`) : null,
     a.analysisStatus === 'manual' ? h('div', { class: 'muted' }, '(đã sửa tay)') : null);
+}
+
+/** Kết quả từ máy chủ nếu đã có, không thì kết quả điện thoại này tự đọc (xem được cả khi mất mạng). */
+function bestAnalysis(p) {
+  if (!p) return null;
+  const server = p.analysis;
+  if (server && ['done', 'partial', 'manual'].includes(server.analysisStatus)) return server;
+  if (p.analysisLocal) return { ...p.analysisLocal, analysisStatus: p.analysisLocal.status || 'done' };
+  return server || null;
 }
 
 /** Kết quả AI của ảnh vào/ra; quản lý sửa tay được (setAnalysis) khi AI đọc sai. */
 async function analysisCard(s, ctx) {
   const pin = s.inPhotoId && (await db.getPhoto(s.inPhotoId));
   const pout = s.outPhotoId && (await db.getPhoto(s.outPhotoId));
-  const ain = pin && pin.analysis;
-  const aout = pout && pout.analysis;
+  const ain = bestAnalysis(pin);
+  const aout = bestAnalysis(pout);
   const alerts = (await db.allAlerts()).filter((a) => a.sessionId === s.id);
   const threshold = Number(await db.getMeta('alertThreshold', 0.7)) || 0.7;
   const note = ain && aout ? compareNote(ain, aout, threshold) : '';
   const card = h('div', { class: 'card', id: 'analysis-card', style: 'margin-top:10px' },
-    h('b', {}, 'AI phân tích ảnh'),
+    h('b', {}, 'Đọc ảnh (biển số, màu xe)'),
     h('div', { class: 'analysis' }, h('div', {}, h('div', { class: 'muted' }, 'Lúc vào'), analysisLine(ain)),
       h('div', {}, h('div', { class: 'muted' }, 'Lúc ra'), s.outPhotoId ? analysisLine(aout) : h('div', { class: 'muted' }, 'Chưa trả xe'))),
     note ? h('div', { class: 'muted' }, `So sánh: ${note}`) : null,

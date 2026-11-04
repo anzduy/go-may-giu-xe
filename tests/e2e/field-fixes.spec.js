@@ -83,11 +83,12 @@ test('Lỡ thoát rồi đăng nhập lại (chưa chốt ca) → vẫn giữ s�
   await expect(page.locator('#shift-revenue')).toHaveText('Tiền cần nộp: 0đ');
 });
 
-test('AI chưa bật → màn hình Cảnh báo nói rõ vì sao chưa có cảnh báo', async ({ page }) => {
+test('Không có khóa AI trên máy chủ nhưng điện thoại tự đọc được → không báo "AI chưa bật"', async ({ page }) => {
   await login(page);
   await expect.poll(() => page.evaluate(() => window.__gomay.db.getMeta('visionEnabled')), { timeout: 10000 }).toBe(false);
   await page.click('#nav a[href="#alerts"]');
-  await expect(page.locator('#ai-off')).toContainText('AI đọc ảnh CHƯA BẬT');
+  await expect(page.locator('#screen')).toContainText('điện thoại tự đọc ảnh');
+  await expect(page.locator('#ai-off')).toHaveCount(0);
 });
 
 test('Camera tự nghỉ khi không thao tác (đỡ nóng máy); bấm CHỤP lúc camera nghỉ vẫn gửi xe được', async ({ page }) => {
@@ -136,7 +137,7 @@ test('Ảnh lưu trên máy dạng bytes (tránh lỗi Blob của Safari iPhone)
   await expect(page.locator('#count-photos')).toHaveText('Ảnh chờ sao lưu: 0');
   await page.goto(`/#session?id=${mock.sessions()[0].id}`);
   await expect(page.locator('#photo-pair img')).toHaveCount(1);
-  await expect(page.locator('.ai-status').first()).toContainText('AI chưa bật', { timeout: 10000 });
+  await expect(page.locator('.ai-status').first()).toContainText('Chưa đọc được biển số', { timeout: 10000 });
   expect(await page.locator('#screen').innerText()).not.toMatch(/\bnull\b/);
   for (const hash of ['#lot', '#shift', '#alerts', '#checkout']) {
     await page.goto(`/${hash}`);

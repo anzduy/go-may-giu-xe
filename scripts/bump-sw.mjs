@@ -16,10 +16,10 @@ function walk(dir) {
   });
 }
 
-/** Các file bắt buộc phải có trong SHELL (mọi file web trừ sw.js và README). */
+/** Các file bắt buộc phải có trong SHELL (mọi file web trừ sw.js, README và model đọc biển số — tải khi cần, xem LAZY trong sw.js). */
 export function requiredFiles() {
   return walk(web).map((p) => path.relative(web, p).split(path.sep).join('/'))
-    .filter((f) => f !== 'sw.js' && !/README\.md$/.test(f)).sort();
+    .filter((f) => f !== 'sw.js' && !/README\.md$/.test(f) && !f.startsWith('models/') && !f.startsWith('vendor/ort/')).sort();
 }
 
 export function shellList(swSource) {
