@@ -73,7 +73,7 @@ Thuộc tính tập lệnh (Script Properties)** và thêm:
 | `VISION_MODEL` | (không bắt buộc, **nên bỏ trống**) Gemini: app tự dùng bản *flash* mới nhất và tự chuyển khi Google khai tử model cũ. Claude: mặc định `claude-haiku-5-5` |
 
 > Sửa khóa / model xong mà ảnh cũ vẫn chưa có biển số: trong Apps Script chọn hàm **`docLaiAnhAI`** → **Chạy** để AI đọc
-> lại ảnh 3 ngày gần nhất (không chạy thì app cũng tự đọc lại dần trong 5 phút).
+> lại ảnh 3 ngày gần nhất (chạy tối đa ~4 phút rồi tự dừng; ảnh còn lại app tự đọc tiếp mỗi 5 phút).
 >
 > Lưu ý: gói miễn phí của Gemini có thể dùng dữ liệu gửi lên để cải thiện dịch vụ (ảnh xe trong bãi). Không muốn
 > vậy thì dùng gói trả phí. AI lỗi hoặc hết lượt miễn phí: gửi/trả xe vẫn bình thường, ảnh được phân tích lại sau
