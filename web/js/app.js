@@ -2,6 +2,7 @@
 import * as db from './db.js';
 import * as sync from './sync.js';
 import { setAuth } from './api.js';
+import { warmUp } from './plate-reader.js';
 import { ctx } from './ctx.js';
 import { h, uuid, hideToast, toast } from './ui.js';
 import { VEHICLE_TYPES } from '../shared/pricing.js';
@@ -92,6 +93,7 @@ async function onLogin({ token, staff, qrSecret, serverTime }) {
     await db.setMeta('shiftStaffId', staff.id);
   }
   sync.start();
+  warmUpReader();
   const last = await db.getMeta('lastMode', 'checkin');
   if (location.hash.slice(1).split('?')[0] === last) route(); else location.hash = `#${last}`;
 }
@@ -150,6 +152,11 @@ async function housekeeping() {
   } catch { /* không quan trọng */ }
 }
 
+/** Tải sẵn bộ đọc biển số (~25 MB, chỉ lần đầu) lúc rảnh, để xe đầu tiên không phải chờ. */
+function warmUpReader() {
+  setTimeout(() => { if (!(navigator.connection && navigator.connection.saveData)) warmUp(); }, 4000);
+}
+
 async function boot() {
   let deviceId = await db.getMeta('deviceId');
   if (!deviceId) { deviceId = `dev_${uuid().slice(0, 8)}`; await db.setMeta('deviceId', deviceId); }
@@ -164,6 +171,7 @@ async function boot() {
     ctx.clockOffset = await db.getMeta('clockOffset', 0);
     setAuth({ token });
     sync.start();
+    warmUpReader();
   }
 
   window.addEventListener('hashchange', route);

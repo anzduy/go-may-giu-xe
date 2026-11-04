@@ -6,6 +6,7 @@ import { startScan } from '../scanner.js';
 import { h, toast, uuid, timeVN, dateVN, asyncPhoto, fill } from '../ui.js';
 import { formatNo, parseTypedNumber, parseQr, validateForCheckout, ticketMessage, maxTicketNo } from '../../shared/ticket.js';
 import { VEHICLE_TYPES, formatMoney } from '../../shared/pricing.js';
+import { ensureLocalAnalysis } from '../analysis.js';
 
 export async function render(root, ctx) {
   const today = ctx.today();
@@ -172,6 +173,7 @@ export async function render(root, ctx) {
         photos: [{ id: photoId, sessionId: session.id, kind: 'out', takenAt: outAt, deviceId: ctx.deviceId, blob, uploadState: 'pending', attempts: 0 }],
         ops: [{ opId: uuid(), type: 'checkout', createdAt: outAt, payload: { sessionId: session.id, outAt, outPhotoId: photoId } }],
       });
+      ensureLocalAnalysis(photoId);
       sync.kick();
       ctx.changed();
       toast(`✔ Đã trả xe phiếu ${formatNo(session.ticketNo)} · Thu ${formatMoney(updated.fee)}`, { ms: 4000 });
@@ -200,6 +202,7 @@ export async function render(root, ctx) {
         photos: [{ id: photoId, sessionId: id, kind: 'out', takenAt: outAt, deviceId: ctx.deviceId, blob, uploadState: 'pending', attempts: 0 }],
         ops: [{ opId: uuid(), type: 'provisionalCheckout', createdAt: outAt, payload: { id, ticketDate, ticketNo: no, outAt, outPhotoId: photoId, note: s.note } }],
       });
+      ensureLocalAnalysis(photoId);
       sync.kick();
       ctx.changed();
       toast(`Đã trả xe tạm phiếu ${formatNo(no)} — sẽ tự ghép khi đồng bộ`, { ms: 4000 });

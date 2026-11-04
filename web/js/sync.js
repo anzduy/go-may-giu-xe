@@ -4,6 +4,7 @@ import { call } from './api.js';
 import * as db from './db.js';
 import { mergeServerSession } from '../shared/merge.js';
 import { nextPhotoToUpload, retryDelayMs } from './photo-queue.js';
+import { ensureLocalAnalysis, supported as analyzerSupported } from './analysis.js';
 
 const MAX_BACKOFF = 60000;
 let running = false;
@@ -54,13 +55,16 @@ async function uploadPhotos(budgetMs = 8000) {
       await emitPending();
       continue;
     }
-    await db.putPhoto({ ...p, uploadState: 'uploading', uploadingAt: Date.now() });
+    // Đọc biển số / màu trên máy trước khi gửi (nếu chưa) → máy chủ khỏi gọi AI trả phí, so sánh vào/ra được ngay.
+    const analysis = analyzerSupported() ? await ensureLocalAnalysis(p.id) : null;
+    await db.putPhoto({ ...((await db.getPhoto(p.id)) || p), uploadState: 'uploading', uploadingAt: Date.now() });
     const r = await call('uploadPhoto', {
       photoId: p.id, sessionId: p.sessionId, kind: p.kind, takenAt: p.takenAt, jpegBase64: b64,
+      ...(analysis ? { analysis } : {}),
     }, { timeoutMs: 90000 });
     const fresh = (await db.getPhoto(p.id)) || p;
     if (r.ok) {
-      await db.putPhoto({ ...fresh, uploadState: 'done', driveFileId: r.data.driveFileId, uploadedAt: new Date().toISOString() });
+      await db.putPhoto({ ...fresh, uploadState: 'done', driveFileId: r.data.driveFileId, uploadedAt: new Date().toISOString(), analysisSent: !!analysis });
       emit('sync:photoError', null);
     } else {
       if (r.error.code !== 'OFFLINE') emit('sync:photoError', r.error);
@@ -144,6 +148,7 @@ export async function syncNow() {
     const okPull = okPush && (await pullOnce());
     // Ảnh chỉ tải sau khi lượt gửi đã lên máy chủ (đẩy thao tác trước).
     const okPhotos = okPush && (await uploadPhotos());
+    if (okPhotos) await analyzeBacklog();
     backoff = okPush && okPull ? 0 : Math.min(MAX_BACKOFF, backoff ? backoff * 2 : 2000);
     if (okPush && okPull && okPhotos) lastError = null;
     emit('sync:status', { online: okPush && okPull, error: lastError });
@@ -186,4 +191,31 @@ export function start() {
 export function stop() {
   running = false;
   clearTimeout(timer);
+}
+
+/**
+ * Ảnh ĐÃ lên cloud nhưng máy chủ chưa có kết quả đọc (ảnh chụp trước bản này, ảnh máy khác chưa đọc được):
+ * đọc trên máy này rồi báo lên (reportAnalysis). Mỗi vòng tối đa 2 ảnh cho đỡ nóng máy.
+ */
+async function analyzeBacklog() {
+  if (!analyzerSupported()) return;
+  const sessions = (await db.allSessions()).filter((s) => s.status === 'in_lot' && s.plateStatus === 'pending' && s.inPhotoId);
+  let n = 0;
+  for (const s of sessions) {
+    if (n >= 2) break;
+    const p = await db.getPhoto(s.inPhotoId);
+    if (p && (p.analysisSent || p.analysisReportFailed > 4 || (p.analysisRetryAt || 0) > Date.now())) continue;
+    if (p && p.uploadState && p.uploadState !== 'done') continue; // chưa lên cloud → sẽ gửi kèm lúc tải ảnh
+    if (!p || !p.blob) { if (!(await db.getPhotoBlob(s.inPhotoId))) continue; }
+    n++;
+    const a = await ensureLocalAnalysis(s.inPhotoId);
+    if (!a) { // máy chưa đọc được (đang tải bộ đọc / ảnh hỏng) → 2 phút sau thử lại, tối đa 5 lần
+      const cur = await db.getPhoto(s.inPhotoId);
+      if (cur) await db.putPhoto({ ...cur, analysisReportFailed: (cur.analysisReportFailed || 0) + 1, analysisRetryAt: Date.now() + 120000 });
+      continue;
+    }
+    const r = await call('reportAnalysis', { photoId: s.inPhotoId, analysis: a });
+    const cur = (await db.getPhoto(s.inPhotoId)) || {};
+    await db.putPhoto({ ...cur, analysisSent: r.ok, analysisReportFailed: r.ok ? 0 : (cur.analysisReportFailed || 0) + 1 });
+  }
 }

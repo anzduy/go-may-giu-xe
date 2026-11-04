@@ -5,6 +5,7 @@ import * as sync from '../sync.js';
 import { start as startCamera, captureJpeg, captureViaInput } from '../camera.js';
 import { h, toast, uuid, timeVN, dateVN, asyncPhoto, fill } from '../ui.js';
 import { hashParams } from '../ctx.js';
+import { ensureLocalAnalysis } from '../analysis.js';
 import { formatNo, parseTypedNumber } from '../../shared/ticket.js';
 import { normalizePlate } from '../../shared/sessions.js';
 import { lostFee, formatMoney, VEHICLE_TYPES } from '../../shared/pricing.js';
@@ -91,6 +92,7 @@ export async function render(root, ctx) {
           photos: [{ id: photoId, sessionId: s.id, kind: 'out', takenAt: outAt, deviceId: ctx.deviceId, blob, uploadState: 'pending', attempts: 0 }],
           ops: [{ opId: uuid(), type: 'lostCheckout', createdAt: outAt, payload: { sessionId: s.id, outAt, outPhotoId: photoId, note: updated.note } }],
         });
+        ensureLocalAnalysis(photoId);
         sync.kick();
         ctx.changed();
         toast(`✔ Đã trả xe mất phiếu ${formatNo(s.ticketNo)} · thu ${formatMoney(fee)}`, { ms: 4000 });

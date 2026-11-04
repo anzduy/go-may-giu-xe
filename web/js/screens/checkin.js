@@ -10,6 +10,7 @@ import {
   maxTicketNo, remainingTickets, ticketMessage,
 } from '../../shared/ticket.js';
 import { findPlateDuplicate } from '../../shared/sessions.js';
+import { ensureLocalAnalysis } from '../analysis.js';
 import { VEHICLE_TYPES, priceFor } from '../../shared/pricing.js';
 
 const UNDO_MS = 10000;
@@ -171,6 +172,7 @@ export async function render(root, ctx) {
         payload: { id, ticketDate: today, ticketNo: current, noTicket, vehicleType, inAt, inPhotoId: photoId },
       };
       await db.saveCheckin(session, photo, op);
+      ensureLocalAnalysis(photoId); // đọc biển số + màu trên máy, chạy ngầm (không chờ)
       const prevLast = lastNo;
       lastNo = current;
       await db.setMeta(`lastNo:${today}`, lastNo);

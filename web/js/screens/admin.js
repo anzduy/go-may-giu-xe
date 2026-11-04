@@ -4,6 +4,7 @@ import * as db from '../db.js';
 import * as sync from '../sync.js';
 import { h, toast, uuid, timeVN, dateVN, fill } from '../ui.js';
 import { hashParams } from '../ctx.js';
+import { supported as readerSupported } from '../plate-reader.js';
 import { formatNo, dateKey } from '../../shared/ticket.js';
 import { formatMoney, priceRuleAt, VEHICLE_TYPES } from '../../shared/pricing.js';
 
@@ -189,9 +190,10 @@ async function alertsTab(body, ctx) {
   const period = h('select', { id: 'alert-period' }, h('option', { value: 'week' }, '7 ngày qua'), h('option', { value: 'month' }, 'Tháng này'));
   const stats = h('div', { class: 'muted', id: 'alert-stats' });
   const list = h('div', { class: 'list', id: 'admin-alert-list' });
-  const aiOff = (await db.getMeta('visionEnabled')) === false;
+  const aiOff = (await db.getMeta('visionEnabled')) === false && !readerSupported();
   fill(body, 
-    aiOff ? h('div', { class: 'banner warn', id: 'ai-off' }, '⚠ AI đọc ảnh CHƯA BẬT → chưa có cảnh báo tự động và chưa tự đọc biển số. Bật: Apps Script → ⚙️ Cài đặt dự án → Thuộc tính tập lệnh → thêm VISION_API_KEY (khóa Gemini miễn phí từ aistudio.google.com).') : null,
+    aiOff ? h('div', { class: 'banner warn', id: 'ai-off' }, '⚠ Điện thoại này không chạy được bộ đọc biển số (trình duyệt quá cũ). Cập nhật Chrome / Safari rồi mở lại app.') : null,
+    h('p', { class: 'muted' }, 'Biển số + màu xe do điện thoại tự đọc (miễn phí, chạy cả khi mất mạng). Không đếm mũ bảo hiểm.'),
     h('div', { class: 'card' }, h('b', {}, 'Độ nhạy cảnh báo'), slider, label, save),
     h('div', { class: 'row' }, period), stats, list);
   slider.addEventListener('input', showLabel);

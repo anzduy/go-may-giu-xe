@@ -16,6 +16,7 @@
     "@anthropic-ai/sdk": "0.135.0",
     "@google/clasp": "2.4.2",
     "@playwright/test": "1.63.0",
+    "onnxruntime-node": "1.30.0",
     "vitest": "3.2.4"
   }
 }

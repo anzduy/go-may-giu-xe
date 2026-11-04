@@ -6,6 +6,7 @@ var ROUTES = {
   pull: { fn: function (d, a) { return pull(d, a); } },
   uploadPhoto: { fn: function (d, a) { return uploadPhoto(d, a); } },
   getPhoto: { fn: function (d, a) { return getPhoto(d, a); } },
+  reportAnalysis: { fn: function (d, a) { return reportAnalysis(d, a); } },
   createBatch: { fn: function (d, a) { return createBatch(d, a); }, manager: true },
   listBatches: { fn: function (d, a) { return listBatches(d, a); }, manager: true },
   reprintBatch: { fn: function (d, a) { return reprintBatch(d, a); }, manager: true },

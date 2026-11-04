@@ -16,8 +16,8 @@ Tài liệu thiết kế (Spec Kit): [`specs/001-giu-xe-go-may/`](specs/001-giu-
 ✅ **Bản MVP** (giai đoạn 1–5 trong `tasks.md`): in phiếu, gửi xe, trả xe, trả xe tạm, xe trong bãi, chi tiết lượt.
 
 ✅ **US6 — chạy ngầm**: ảnh lưu trên máy trước rồi tự **sao lưu lên Google Drive** (ảnh lúc ra được ưu tiên);
-máy khác / máy mới **tự tải ảnh từ Drive**; **AI đọc biển số, màu xe, số mũ** ("Xe máy màu đỏ · 2 mũ") hiện ở màn
-hình trả xe; tìm xe theo vài số cuối biển số; sửa tay biển số; dọn ảnh cũ trên máy (chỉ ảnh đã sao lưu > 7 ngày)
+máy khác / máy mới **tự tải ảnh từ Drive**; **điện thoại tự đọc biển số + màu xe** (miễn phí, chạy cả khi mất mạng —
+xem mục 1b) hiện ở màn hình trả xe; tìm xe theo vài số cuối biển số; sửa tay biển số; dọn ảnh cũ trên máy (chỉ ảnh đã sao lưu > 7 ngày)
 và dọn Drive hằng đêm (ảnh > 30 ngày; dữ liệu > 90 ngày dời sang file lưu trữ).
 
 ✅ **US4 — mất phiếu**: chọn xe trong lưới ảnh → trả xe mất phiếu (ghi chú bắt buộc, thu phí mất phiếu, chụp ảnh ra);
@@ -27,8 +27,8 @@ gán lại số phiếu khi lúc gửi đưa nhầm phiếu.
 sau); chủ sân vào **Quản lý**: báo cáo theo ngày/ca (hôm nay, 7 ngày, tháng này), **đổi giá**, **thêm/khóa nhân viên,
 đổi PIN**, xem lượt có xung đột và **hủy lượt** (bắt buộc lý do, không xóa dữ liệu).
 
-✅ **US7 — cảnh báo AI**: so ảnh lúc ra với ảnh lúc vào; **thiếu mũ** (cảnh báo vừa) hoặc **khác màu xe / khác biển số**
-(cảnh báo cao) → thẻ cảnh báo trên máy nhân viên vừa trả xe (rung; iPhone thì nháy đỏ) + âm báo, có 2 ảnh cạnh nhau,
+✅ **US7 — cảnh báo**: so ảnh lúc ra với ảnh lúc vào; **khác biển số / khác màu xe** (cảnh báo cao; **thiếu mũ** chỉ
+có khi bật thêm AI trên mạng, xem 1b) → thẻ cảnh báo trên máy nhân viên vừa trả xe (rung; iPhone thì nháy đỏ) + âm báo, có 2 ảnh cạnh nhau,
 không chặn lượt trả xe sau. Khách đội mũ khi dắt xe ra vẫn tính đủ mũ. Đóng cảnh báo bằng "Đúng xe / đội mũ",
 "Báo sai" hoặc "Có vấn đề thật". Quản lý chỉnh **độ nhạy**, xem danh sách cảnh báo, sửa tay kết quả AI.
 
@@ -61,23 +61,36 @@ không chặn lượt trả xe sau. Khách đội mũ khi dắt xe ra vẫn tín
 > Phiên bản: Phiên bản mới → Triển khai** (URL `/exec` giữ nguyên).
 > Sau khi cập nhật mã mới, chạy lại **`setup`** một lần (an toàn, không mất dữ liệu) để thêm cột mới nếu có.
 
-### 1b. (Tùy chọn) Bật AI đọc biển số, màu xe, số mũ
+### 1b. Đọc biển số + màu xe: điện thoại tự làm, MIỄN PHÍ
 
-Không bật thì app vẫn chạy đủ, chỉ không tự đọc biển số. Để bật, trong Apps Script vào **Cài đặt dự án →
-Thuộc tính tập lệnh (Script Properties)** và thêm:
+Không cần khóa API, không tốn tiền, chạy cả khi mất mạng. Điện thoại dùng 2 mô hình mã nguồn mở (giấy phép MIT):
+[open-image-models](https://github.com/ankandrew/open-image-models) tìm biển số trong ảnh và
+[fast-plate-ocr](https://github.com/ankandrew/fast-plate-ocr) đọc chữ (đọc được biển xe máy 2 dòng của Việt Nam),
+chạy bằng [onnxruntime-web](https://github.com/microsoft/onnxruntime). Màu xe lấy từ vùng thân xe phía trên biển số.
+
+- **Lần đầu** mở app, mỗi điện thoại tải bộ đọc khoảng **25 MB** (nên dùng Wi-Fi), sau đó giữ lại trong máy — cập
+  nhật app không phải tải lại. Mỗi ảnh đọc mất khoảng 0,2–1 giây.
+- Biển số đọc được hiện ngay trên máy (tìm xe bằng vài số cuối), rồi gửi kèm ảnh lên máy chủ để máy khác cùng thấy và
+  để so sánh lúc trả xe. Xe gửi từ trước khi có bản này: app tự tải ảnh về đọc dần (2 xe mỗi lượt đồng bộ).
+- **Không đếm mũ bảo hiểm** (chưa có mô hình mở đủ tin cậy) → không có cảnh báo "thiếu mũ". Màu xe chỉ cảnh báo khi
+  chắc chắn (màu chiếm phần lớn thân xe); xe tối màu sát tường có thể không đủ chắc nên chỉ hiện, không cảnh báo.
+
+**Muốn tắt hẳn AI trên mạng (Gemini):** Apps Script → **Cài đặt dự án → Thuộc tính tập lệnh** → xóa dòng
+`VISION_API_KEY` (có thể xóa cả `VISION_MODEL_AUTO`, `VISION_PROVIDER`, `VISION_MODEL`). **Không** xóa
+`PHOTO_FOLDER_ID`, `QR_SECRET`, `REV`, `SHEET_ID`.
+
+<details><summary>(Không bắt buộc) Vẫn muốn AI trên mạng đếm mũ</summary>
+
+Giữ `VISION_API_KEY` thì ảnh nào điện thoại **không** gửi kèm kết quả (máy quá cũ) sẽ được Gemini / Claude đọc như trước:
 
 | Thuộc tính | Giá trị |
 |---|---|
-| `VISION_API_KEY` | Khóa API — mặc định **Google Gemini** (lấy miễn phí tại Google AI Studio) |
-| `VISION_PROVIDER` | `gemini` (mặc định, gói miễn phí) hoặc `claude` (Claude Haiku 5.5, trả phí theo lượt) |
-| `VISION_MODEL` | (không bắt buộc, **nên bỏ trống**) Gemini: app tự dùng bản *flash* mới nhất và tự chuyển khi Google khai tử model cũ. Claude: mặc định `claude-haiku-5-5` |
+| `VISION_API_KEY` | Khóa API — mặc định **Google Gemini** (Google AI Studio; gói miễn phí giới hạn lượt/ngày) |
+| `VISION_PROVIDER` | `gemini` (mặc định) hoặc `claude` (Claude Haiku 5.5, trả phí theo lượt) |
+| `VISION_MODEL` | (nên bỏ trống) Gemini: app tự dùng bản *flash* mới nhất. Claude: mặc định `claude-haiku-5-5` |
 
-> Sửa khóa / model xong mà ảnh cũ vẫn chưa có biển số: trong Apps Script chọn hàm **`docLaiAnhAI`** → **Chạy** để AI đọc
-> lại ảnh 3 ngày gần nhất (chạy tối đa ~4 phút rồi tự dừng; ảnh còn lại app tự đọc tiếp mỗi 5 phút).
->
-> Lưu ý: gói miễn phí của Gemini có thể dùng dữ liệu gửi lên để cải thiện dịch vụ (ảnh xe trong bãi). Không muốn
-> vậy thì dùng gói trả phí. AI lỗi hoặc hết lượt miễn phí: gửi/trả xe vẫn bình thường, ảnh được phân tích lại sau
-> (trigger 5 phút).
+Hàm **`docLaiAnhAI`** đọc lại ảnh 3 ngày gần nhất. Gói miễn phí của Gemini có thể dùng ảnh gửi lên để cải thiện dịch vụ.
+</details>
 
 ### 2. Trang web: GitHub Pages
 
@@ -100,8 +113,8 @@ Bảo mật (nên đọc): [`docs/bao-mat.md`](docs/bao-mat.md).
 
 ```bash
 npm install
-npm test            # 130 unit test: logic phiếu, giá, đồng bộ, AI đọc ảnh, Apps Script chạy giả lập
-npm run test:e2e    # 26 test đầu-cuối trên Chromium với camera giả (2 máy, mất mạng, sao lưu ảnh)
+npm test            # 148 unit test: logic phiếu, giá, đồng bộ, đọc biển số (chạy model thật nếu có ảnh mẫu), Apps Script giả lập
+npm run test:e2e    # 36 test đầu-cuối trên Chromium với camera giả (2 máy, mất mạng, sao lưu ảnh)
 npm run serve       # chạy thử tại http://localhost:5173
 npm run build:gas   # sinh gas/Shared.js và file gộp gas-bundle/GoMay-GiuXe.gs (chạy sau khi sửa web/shared/ hoặc gas/)
 node scripts/eval-vision.mjs   # đo độ chính xác AI trên ảnh thật (cần khóa API)

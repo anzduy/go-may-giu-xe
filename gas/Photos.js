@@ -1,5 +1,6 @@
 // Ảnh xe: lưu lên Google Drive (GoMay-GiuXe/Anh/YYYY-MM-DD/), lấy lại khi máy mất ảnh,
-// rồi gọi AI phân tích (gas/Vision.js). Không gọi Drive/AI trong lúc giữ khóa (research.md R4).
+// nhận kết quả đọc biển số + màu do ĐIỆN THOẠI làm (web/js/plate-reader.js); chỉ khi máy không gửi kèm mà có
+// VISION_API_KEY thì mới gọi AI trên mạng (gas/Vision.js). Không gọi Drive/AI trong lúc giữ khóa (research.md R4).
 
 function photoFolderForDay_(dayKey) {
   var root = DriveApp.getFolderById(PropertiesService.getScriptProperties().getProperty('PHOTO_FOLDER_ID'));
@@ -12,8 +13,12 @@ function uploadPhoto(d, auth) {
   var kind = d.kind === 'out' ? 'out' : d.kind === 'in' ? 'in' : '';
   if (!photoId || !kind || !d.sessionId || !d.jpegBase64) throw err_('BAD_REQUEST', 'Thiếu dữ liệu ảnh');
 
+  var device = deviceAnalysis_(d.analysis);
   var existing = findBy('Photos', 'id', photoId);
-  if (existing && existing.driveFileId) return { driveFileId: existing.driveFileId, duplicate: true };
+  if (existing && existing.driveFileId) {
+    if (device && existing.analysisStatus !== 'done' && existing.analysisStatus !== 'partial') storeAnalysis_(photoId, device);
+    return { driveFileId: existing.driveFileId, duplicate: true };
+  }
 
   // Ngoài khóa: ghi file lên Drive.
   var session = findBy('Sessions', 'id', String(d.sessionId));
@@ -29,18 +34,42 @@ function uploadPhoto(d, auth) {
     var row = {
       id: photoId, sessionId: String(d.sessionId), kind: kind, takenAt: takenAt, deviceId: auth.deviceId,
       driveFileId: file.getId(), uploadedAt: new Date().toISOString(),
-      analysisStatus: visionConfigured_() ? 'pending' : 'disabled', analysisAttempts: 0, rev: nextRev(),
+      analysisStatus: device || visionConfigured_() ? 'pending' : 'disabled', analysisAttempts: 0, rev: nextRev(),
     };
     upsertObjects('Photos', [row], rows);
     return { row: row, duplicate: false };
   });
   if (saved.duplicate) { file.setTrashed(true); return { driveFileId: saved.row.driveFileId, duplicate: true }; }
 
+  if (device) { storeAnalysis_(photoId, device); return { driveFileId: saved.row.driveFileId }; }
+
   // Ngoài khóa: AI phân tích. Lỗi AI không làm lỗi lệnh tải ảnh (trigger 5 phút sẽ thử lại).
   if (saved.row.analysisStatus === 'pending') {
     try { analyzeAndStore_(saved.row, blob); } catch (e) { console.error('Phân tích ảnh lỗi: ' + e); }
   }
   return { driveFileId: saved.row.driveFileId };
+}
+
+/** Kết quả đọc do điện thoại gửi lên → { ok, analysis } đã kiểm tra khuôn, hoặc null nếu không có / hỏng. */
+function deviceAnalysis_(a) {
+  if (!a || typeof a !== 'object' || !a.confidence || typeof a.confidence !== 'object') return null;
+  var r = parseVisionResponse(JSON.stringify(a));
+  return r.ok ? r : null;
+}
+
+/**
+ * Điện thoại đọc xong một ảnh ĐÃ tải lên từ trước (ảnh tồn, máy vừa tải model) → lưu kết quả, so sánh, cảnh báo.
+ * Không ghi đè kết quả đã có (đọc trùng từ hai máy).
+ */
+function reportAnalysis(d) {
+  var photoId = String(d.photoId || '');
+  var device = deviceAnalysis_(d.analysis);
+  if (!photoId || !device) throw err_('BAD_REQUEST', 'Thiếu kết quả đọc ảnh');
+  var row = findBy('Photos', 'id', photoId);
+  if (!row) throw err_('PHOTO_NOT_FOUND');
+  if (row.analysisStatus === 'done' || row.analysisStatus === 'partial') return { skipped: true };
+  storeAnalysis_(photoId, device);
+  return { ok: true };
 }
 
 function getPhoto(d) {

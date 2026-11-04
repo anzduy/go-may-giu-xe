@@ -32,6 +32,17 @@ export function createMock() {
     const fresh = newAlertsForSession(s, analyses.get(s.inPhotoId), analyses.get(s.outPhotoId), state.alerts, threshold, new Date().toISOString(), randomUUID);
     if (fresh.length) { rev++; fresh.forEach((a) => state.alerts.push({ ...a, rev })); }
   }
+  const deviceReports = []; // kết quả đọc ảnh do điện thoại gửi lên (để test kiểm tra)
+  const isDone = (a) => a && (a.analysisStatus === 'done' || a.analysisStatus === 'partial');
+  // giống gas/Vision.js storeAnalysis_
+  function storeAnalysis(photoId, a) {
+    const ph = photos.get(photoId);
+    rev++;
+    analyses.set(photoId, { ...a, analysisStatus: a.status || 'done', id: photoId, sessionId: ph.sessionId, kind: ph.kind, rev });
+    const session = state.sessions.get(ph.sessionId);
+    if (ph.kind === 'in' && session) { rev++; state.sessions.set(session.id, { ...applyInAnalysis(session, a), rev }); }
+    runCompare(ph.sessionId);
+  }
   let n = 0;
 
   const ok = (data) => ({ ok: true, data });
@@ -78,16 +89,26 @@ export function createMock() {
       }
       case 'uploadPhoto': {
         if (!photos.has(data.photoId)) {
-          photos.set(data.photoId, { ...data });
+          photos.set(data.photoId, { ...data, analysis: undefined });
           const session = state.sessions.get(data.sessionId);
-          const a = analyze && session ? analyze(data, session) : null;
+          // giống gas/Photos.js: kết quả điện thoại gửi kèm được dùng trước, không có mới "gọi AI"
+          const a = data.analysis || (analyze && session ? analyze(data, session) : null);
+          if (data.analysis) deviceReports.push({ action: 'uploadPhoto', photoId: data.photoId, analysis: data.analysis });
           rev++;
-          analyses.set(data.photoId, a ? { ...a, analysisStatus: a.status || 'done', id: data.photoId, sessionId: data.sessionId, kind: data.kind, rev }
-            : { analysisStatus: 'disabled', analysisError: 'DISABLED', id: data.photoId, sessionId: data.sessionId, kind: data.kind, rev });
-          if (a && data.kind === 'in') { rev++; state.sessions.set(session.id, { ...applyInAnalysis(session, a), rev }); }
-          if (a) runCompare(data.sessionId);
+          analyses.set(data.photoId, { analysisStatus: 'disabled', analysisError: 'DISABLED', id: data.photoId, sessionId: data.sessionId, kind: data.kind, rev });
+          if (a) storeAnalysis(data.photoId, a);
+        } else if (data.analysis && !isDone(analyses.get(data.photoId))) {
+          storeAnalysis(data.photoId, data.analysis);
         }
         return ok({ driveFileId: `drive-${data.photoId}` });
+      }
+      case 'reportAnalysis': {
+        if (!photos.has(data.photoId)) return fail('PHOTO_NOT_FOUND');
+        if (!data.analysis || !data.analysis.confidence) return fail('BAD_REQUEST');
+        deviceReports.push({ action: 'reportAnalysis', photoId: data.photoId, analysis: data.analysis });
+        if (isDone(analyses.get(data.photoId))) return ok({ skipped: true });
+        storeAnalysis(data.photoId, data.analysis);
+        return ok({ ok: true });
       }
       case 'getPhoto': {
         const ph = photos.get(data.photoId);
@@ -164,6 +185,7 @@ export function createMock() {
     alerts: () => state.alerts,
     threshold: () => threshold,
     setAnalyze(fn) { analyze = fn; },
+    deviceReports,
     pushedOps: () => requests.filter((r) => r.action === 'push').flatMap((r) => r.data.ops || []),
     seedBatch(date, fromNo, toNo) { state.batches.push({ date, fromNo, toNo, createdBy: 'st_m', createdAt: new Date().toISOString() }); rev++; },
     seedSession(s) { rev++; state.sessions.set(s.id, { status: 'in_lot', priceAtIn: 5000, vehicleType: 'motorbike', plateStatus: 'pending', ...s, rev }); },
@@ -181,6 +203,8 @@ export function createMock() {
 
 /** Mở app và đăng nhập (dán URL máy chủ giả ở lần đầu). */
 export async function login(page, name = 'Tuấn', pin = '1234') {
+  // Mặc định không chạy bộ đọc biển số thật (25 MB) trong test; test nào cần thì tự đặt window.__gomayAnalyzer trước.
+  await page.addInitScript(() => { if (!window.__gomayAnalyzer) window.__gomayAnalyzer = async () => null; });
   await page.goto('/');
   await page.locator('#staff-name').waitFor();
   if (await page.locator('#api-url').isVisible()) await page.fill('#api-url', MOCK_URL);

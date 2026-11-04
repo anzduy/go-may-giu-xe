@@ -6,6 +6,7 @@ import { call } from '../api.js';
 import * as db from '../db.js';
 import { h, toast, timeVN, asyncPhoto, fill } from '../ui.js';
 import { formatNo } from '../../shared/ticket.js';
+import { supported as readerSupported } from '../plate-reader.js';
 
 const RESOLUTIONS = [
   ['ok_customer_wearing', 'Đúng xe / đội mũ'],
@@ -115,10 +116,10 @@ export function initAlerts(ctx) {
 /** Màn hình danh sách cảnh báo còn mở (của mình; quản lý thấy tất cả). */
 export async function render(root, ctx) {
   const list = h('div', { class: 'list', id: 'alert-list' });
-  const aiOff = (await db.getMeta('visionEnabled')) === false;
+  const aiOff = (await db.getMeta('visionEnabled')) === false && !readerSupported();
   fill(root, 
-    aiOff ? h('div', { class: 'banner warn', id: 'ai-off' }, '⚠ AI đọc ảnh CHƯA BẬT nên app chưa thể cảnh báo khác xe / thiếu mũ. Chủ sân cần thêm VISION_API_KEY trong Apps Script (xem README, mục 1b).') : null,
-    h('p', { class: 'muted' }, 'Cảnh báo AI khi ảnh lúc ra khác ảnh lúc vào. Chỉ là gợi ý — xem kỹ 2 ảnh.'), list);
+    aiOff ? h('div', { class: 'banner warn', id: 'ai-off' }, '⚠ Điện thoại này không chạy được bộ đọc biển số (trình duyệt quá cũ) nên app chưa thể cảnh báo khác xe. Cập nhật Chrome / Safari rồi mở lại app.') : null,
+    h('p', { class: 'muted' }, 'Cảnh báo khi biển số hoặc màu xe lúc ra khác lúc vào (điện thoại tự đọc ảnh, không đếm mũ bảo hiểm). Chỉ là gợi ý — xem kỹ 2 ảnh.'), list);
   async function paint() {
     const open = (await db.allAlerts()).filter((a) => a.status === 'new' && (ctx.isManager() || a.notifyStaffId === ctx.staff.id))
       .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
