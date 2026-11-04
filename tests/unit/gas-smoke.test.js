@@ -533,4 +533,42 @@ describe('Apps Script (giả lập)', () => {
     expect(gas.docLaiAnhAI()).toBeGreaterThanOrEqual(0);
     props.setProperty('VISION_API_KEY', '');
   });
+
+  it('docLaiAnhAI: gặp "hết lượt" (429) thì dừng ngay; không đọc trùng ảnh đang được lượt khác đọc; in kết quả', () => {
+    const props = gas.PropertiesService.getScriptProperties();
+    props.setProperty('VISION_API_KEY', '');
+    const t = new Date().toISOString();
+    for (let i = 1; i <= 5; i++) {
+      call('push', { ops: [{ opId: `q-c${i}`, type: 'createSession', createdAt: t,
+        payload: { id: `Q${i}`, ticketDate: today(), ticketNo: 120 + i, noTicket: false, vehicleType: 'motorbike', inAt: t, inPhotoId: `Q${i}in` } }] }, manager, 'dA');
+      call('uploadPhoto', { photoId: `Q${i}in`, sessionId: `Q${i}`, kind: 'in', takenAt: t, jpegBase64: 'eA==' }, manager, 'dA');
+    }
+    props.setProperty('VISION_API_KEY', 'khoa-free');
+    props.setProperty('VISION_MODEL_AUTO', 'gemini-3.8-flash');
+    // Ảnh Q5 đang được lượt khác đọc (vừa nhận 30 giây trước)
+    const sh = fake.sheets.get('Photos'); const cols = gas.HEADERS.Photos;
+    let gen = 0;
+    fake.setFetch((url) => { if (url.includes(':generateContent')) { gen++; return gen >= 2 ? { code: 429, body: '{}' } : { code: 200, body: JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({
+      plate: '', color: 'đen', vehicleType: 'motorbike', helmetsOnVehicle: 0, helmetsWorn: 0, otherItems: [], confidence: { plate: 0, color: 0.9, helmets: 0.9 } }) }] } }] }) }; }
+      return { code: 500, body: '{}' }; });
+    const logs = [];
+    gas.Logger.log = (m) => logs.push(m);
+    // docLaiAnhAI đặt lại trạng thái trước → đánh dấu Q5 "đang đọc" SAU bước đặt lại bằng cách chặn claim của Q5:
+    const origClaim = gas.claimPhoto_;
+    gas.claimPhoto_ = (id, st) => (id === 'Q5in' ? null : origClaim(id, st));
+    const n = gas.docLaiAnhAI();
+    gas.claimPhoto_ = origClaim;
+    expect(gen).toBe(2); // ảnh 1 đọc được, ảnh 2 gặp 429 → DỪNG, không gọi tiếp ảnh 3, 4
+    expect(n).toBe(2);
+    expect(logs.join(' ')).toContain('HẾT LƯỢT');
+    expect(logs.join(' ')).toMatch(/Đã đọc 2 ảnh\. Còn \d+ ảnh chờ/);
+    // claim: ảnh đang được đọc (analyzingAt mới) không bị nhận lần hai
+    const row = sh.data.find((r) => r[0] === 'Q3in');
+    row[cols.indexOf('analyzingAt')] = new Date().toISOString();
+    expect(gas.claimPhoto_('Q3in', ['pending', 'failed'])).toBeNull();
+    row[cols.indexOf('analyzingAt')] = new Date(Date.now() - 4 * 60000).toISOString();
+    expect(gas.claimPhoto_('Q3in', ['pending', 'failed'])).not.toBeNull(); // quá 3 phút → coi như lượt cũ đã chết, nhận lại được
+    gas.Logger.log = () => {};
+    props.setProperty('VISION_API_KEY', '');
+  });
 });

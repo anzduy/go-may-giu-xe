@@ -102,6 +102,7 @@ function storeAnalysis_(photoId, result) {
     var row = strip_(found);
     var attempts = (Number(row.analysisAttempts) || 0) + 1;
     row.analysisAttempts = attempts;
+    row.analyzingAt = '';
     if (!result.ok) {
       row.analysisStatus = result.error === 'DISABLED' ? 'disabled' : attempts >= MAX_ANALYSIS_ATTEMPTS ? 'gave_up' : 'failed';
       row.analysisError = String(result.error || '').slice(0, 200); // để app hiện lý do (khóa sai, hết lượt…)
@@ -137,44 +138,90 @@ function storeAnalysis_(photoId, result) {
   });
 }
 
+/** Có ảnh khác đang được đọc trong 3 phút qua thì bỏ qua (tránh trigger 5 phút và docLaiAnhAI đọc trùng). */
+var CLAIM_MS = 3 * 60 * 1000;
+
 /**
- * Trigger 5 phút: phân tích lại ảnh lỗi / chưa phân tích (tối đa 10 ảnh mỗi lần, mới nhất trước).
- * Gồm cả ảnh tải lên LÚC CHƯA CÓ KHÓA AI ("disabled") — thêm VISION_API_KEY sau thì ảnh cũ vẫn được đọc.
+ * Nhận đọc một ảnh (trong khóa ngắn): đánh dấu analyzingAt để lượt chạy khác không đọc trùng.
+ * @returns dòng Photos đã nhận, hoặc null nếu ảnh vừa được lượt khác nhận / đã xong.
  */
-function retryFailedAnalyses() {
-  if (!visionConfigured_()) return 0;
+function claimPhoto_(photoId, statuses) {
+  return withLock(function () {
+    var all = readObjects('Photos');
+    var p = all.filter(function (x) { return x.id === photoId; })[0];
+    if (!p || statuses.indexOf(p.analysisStatus) < 0) return null;
+    if (p.analyzingAt && Date.now() - Date.parse(p.analyzingAt) < CLAIM_MS) return null;
+    var row = strip_(p);
+    row.analyzingAt = new Date().toISOString();
+    upsertObjects('Photos', [row], all);
+    return row;
+  });
+}
+
+/** Ảnh cần đọc lại (mới nhất trước). */
+function photosToRetry_() {
   var cutoff = new Date(Date.now() - 2 * 60 * 1000).toISOString();
-  var recent = new Date(Date.now() - 3 * 86400000).toISOString(); // ảnh "disabled" chỉ đọc lại trong 3 ngày gần nhất
-  var todo = readObjects('Photos').filter(function (p) {
+  var recent = new Date(Date.now() - 3 * 86400000).toISOString(); // ảnh "disabled"/"gave_up" chỉ đọc lại trong 3 ngày gần nhất
+  return readObjects('Photos').filter(function (p) {
     if (!p.driveFileId || String(p.uploadedAt) >= cutoff) return false;
     if (p.analysisStatus === 'failed' || p.analysisStatus === 'pending') return true;
     if (String(p.takenAt) < recent) return false;
     if (p.analysisStatus === 'disabled') return true;
     // Đã dừng thử vì lỗi CẤU HÌNH (khóa sai, model sai) — chủ sân sửa xong thì đọc lại (tối đa 10 lần mỗi ảnh)
     return p.analysisStatus === 'gave_up' && /^HTTP_40[0-4]$/.test(p.analysisError || '') && Number(p.analysisAttempts || 0) < 10;
-  }).sort(function (a, b) { return String(b.takenAt).localeCompare(String(a.takenAt)); }).slice(0, 10);
-  todo.forEach(function (p) {
-    try { analyzeAndStore_(strip_(p), DriveApp.getFileById(p.driveFileId).getBlob()); } catch (e) { console.error(e); }
-  });
-  return todo.length;
+  }).sort(function (a, b) { return String(b.takenAt).localeCompare(String(a.takenAt)); });
 }
 
 /**
- * Chạy tay từ trình soạn thảo Apps Script (chọn hàm docLaiAnhAI → Chạy): đọc lại bằng AI mọi ảnh 3 ngày gần nhất
+ * Đọc lại tối đa `max` ảnh trong tối đa `budgetMs` (Apps Script cắt ngang sau 6 phút).
+ * Gặp "hết lượt" (HTTP 429) thì dừng ngay — gọi tiếp chỉ phí lượt; lượt sau sẽ thử lại.
+ * @returns {{ done:number, left:number, stoppedBy: ''|'time'|'quota' }}
+ */
+function runRetryBatch_(max, budgetMs) {
+  var t0 = Date.now();
+  var list = photosToRetry_();
+  var done = 0;
+  var stoppedBy = '';
+  for (var i = 0; i < list.length && done < max; i++) {
+    if (Date.now() - t0 > budgetMs) { stoppedBy = 'time'; break; }
+    var row = claimPhoto_(list[i].id, ['failed', 'pending', 'disabled', 'gave_up']);
+    if (!row) continue;
+    var r;
+    try { r = analyzeAndStore_(row, DriveApp.getFileById(row.driveFileId).getBlob()); } catch (e) { console.error(e); r = { ok: false }; }
+    done++;
+    if (r && r.error === 'HTTP_429') { stoppedBy = 'quota'; break; }
+  }
+  return { done: done, left: Math.max(0, photosToRetry_().length), stoppedBy: stoppedBy };
+}
+
+/** Trigger 5 phút: đọc lại ảnh lỗi / chưa đọc (tối đa 10 ảnh, ~2 phút mỗi lần). */
+function retryFailedAnalyses() {
+  if (!visionConfigured_()) return 0;
+  return runRetryBatch_(10, 2 * 60 * 1000).done;
+}
+
+/**
+ * Chạy tay từ trình soạn thảo Apps Script (chọn hàm docLaiAnhAI → Chạy): đọc lại bằng AI các ảnh 3 ngày gần nhất
  * chưa có kết quả (lỗi, đã dừng thử, AI chưa bật lúc chụp). Dùng sau khi sửa khóa / model AI.
+ * Chạy tối đa ~4 phút rồi dừng gọn; ảnh còn lại để trigger 5 phút đọc tiếp.
  */
 function docLaiAnhAI() {
+  if (!visionConfigured_()) { Logger.log('Chưa có VISION_API_KEY trong Thuộc tính tập lệnh.'); return 0; }
   var recent = new Date(Date.now() - 3 * 86400000).toISOString();
-  var n = withLock(function () {
+  var queued = withLock(function () {
     var all = readObjects('Photos');
     var redo = all.filter(function (p) {
       return String(p.takenAt) >= recent && ['failed', 'gave_up', 'disabled', 'pending'].indexOf(p.analysisStatus) >= 0;
-    }).map(function (p) { var r = strip_(p); r.analysisStatus = 'pending'; r.analysisAttempts = 0; r.uploadedAt = '2000-01-01T00:00:00.000Z'; return r; });
+    }).map(function (p) {
+      var r = strip_(p); r.analysisStatus = 'pending'; r.analysisAttempts = 0; r.analyzingAt = ''; r.uploadedAt = '2000-01-01T00:00:00.000Z'; return r;
+    });
     if (redo.length) upsertObjects('Photos', redo, all);
     return redo.length;
   });
-  var done = 0;
-  for (var i = 0; i < 6 && done < n; i++) done += retryFailedAnalyses(); // mỗi lượt tối đa 10 ảnh
-  Logger.log('Đã đưa ' + n + ' ảnh vào hàng đọc lại; đã đọc ' + done + ' ảnh. Ảnh còn lại sẽ được đọc trong 5 phút tới.');
-  return n;
+  Logger.log('Có ' + queued + ' ảnh cần đọc lại. Đang đọc (tối đa ~4 phút)…');
+  var r = runRetryBatch_(1000, 4 * 60 * 1000);
+  var why = r.stoppedBy === 'quota' ? ' Google báo HẾT LƯỢT miễn phí — app tự đọc tiếp khi có lượt.'
+    : r.stoppedBy === 'time' ? ' Hết thời gian chạy — app tự đọc tiếp mỗi 5 phút.' : '';
+  Logger.log('Đã đọc ' + r.done + ' ảnh. Còn ' + r.left + ' ảnh chờ.' + why);
+  return r.done;
 }
