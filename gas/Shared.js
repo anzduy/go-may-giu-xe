@@ -461,6 +461,30 @@ function applyInAnalysis(session, a, threshold = DEFAULT_THRESHOLD) {
   return out;
 }
 
+/**
+ * Chọn model Gemini "flash" mới nhất từ danh sách ListModels của Google (Google hay đổi/khai tử tên model —
+ * model cũ trả 404 thì máy chủ gọi hàm này để tự chuyển sang model mới).
+ * Ưu tiên: bản chính thức (không preview/exp) → số phiên bản cao nhất → không phải bản "lite".
+ * @param models [{ name: 'models/gemini-2.5-flash', supportedGenerationMethods: ['generateContent', …] }]
+ * @returns tên model (không có tiền tố "models/") hoặc '' nếu không tìm thấy
+ */
+function chooseGeminiModel(models) {
+  const skip = /(tts|image|live|audio|embedding|thinking|vision-only|learnlm|aqa|robotics|computer-use)/i;
+  const cands = (models || [])
+    .filter((m) => m && m.name && (m.supportedGenerationMethods || []).includes('generateContent'))
+    .map((m) => String(m.name).replace(/^models\//, ''))
+    .filter((n) => /^gemini-[\d.]+-flash/.test(n) && !skip.test(n));
+  const ver = (n) => (/^gemini-([\d.]+)-/.exec(n) || [])[1].split('.').map(Number);
+  const cmpVer = (a, b) => {
+    const x = ver(a), y = ver(b);
+    for (let i = 0; i < Math.max(x.length, y.length); i++) { const d = (y[i] || 0) - (x[i] || 0); if (d) return d; }
+    return 0;
+  };
+  const rank = (n) => (/preview|exp/i.test(n) ? 2 : 0) + (/lite/i.test(n) ? 1 : 0);
+  cands.sort((a, b) => rank(a) - rank(b) || cmpVer(a, b) || a.length - b.length);
+  return cands[0] || '';
+}
+
 // ---- merge.js ----
 // Gộp bản ghi từ máy chủ vào bản trên máy.
 

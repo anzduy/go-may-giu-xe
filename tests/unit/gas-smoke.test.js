@@ -484,4 +484,53 @@ describe('Apps Script (giả lập)', () => {
     expect(kinds).toEqual(['color_mismatch', 'plate_mismatch']);
     props.setProperty('VISION_API_KEY', '');
   });
+
+  it('Google khai tử model gemini-2.5-flash (404) → tự tìm model flash mới nhất, nhớ lại; ảnh đã "dừng thử" được đọc lại', () => {
+    const props = gas.PropertiesService.getScriptProperties();
+    props.setProperty('VISION_API_KEY', 'khoa-dung');
+    props.setProperty('VISION_PROVIDER', 'gemini');
+    props.setProperty('VISION_MODEL', '');
+    props.setProperty('VISION_MODEL_AUTO', '');
+    const ok = { code: 200, body: JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({
+      plate: '77-C1 399.97', color: 'đen', vehicleType: 'motorbike', helmetsOnVehicle: 1, helmetsWorn: 0, otherItems: [],
+      confidence: { plate: 0.95, color: 0.9, helmets: 0.9 } }) }] } }] }) };
+    const calls = [];
+    fake.setFetch((url) => {
+      calls.push(url);
+      if (url.includes('/models?')) return { code: 200, body: JSON.stringify({ models: [
+        { name: 'models/gemini-3.0-flash', supportedGenerationMethods: ['generateContent'] },
+        { name: 'models/gemini-3.0-flash-lite', supportedGenerationMethods: ['generateContent'] },
+        { name: 'models/gemini-3.0-pro', supportedGenerationMethods: ['generateContent'] }] }) };
+      if (url.includes('gemini-2.5-flash:generateContent')) return { code: 404, body: '{}' };
+      if (url.includes('gemini-3.0-flash:generateContent')) return ok;
+      return { code: 500, body: '{}' };
+    });
+    // Ảnh cũ đã "dừng thử" vì 404
+    const t = new Date().toISOString();
+    call('push', { ops: [{ opId: 'm404-c', type: 'createSession', createdAt: t,
+      payload: { id: 'M404', ticketDate: today(), ticketNo: 105, noTicket: false, vehicleType: 'motorbike', inAt: t, inPhotoId: 'M404in' } }] }, manager, 'dA');
+    props.setProperty('VISION_API_KEY', '');
+    call('uploadPhoto', { photoId: 'M404in', sessionId: 'M404', kind: 'in', takenAt: t, jpegBase64: 'eA==' }, manager, 'dA');
+    const sh = fake.sheets.get('Photos'); const cols = gas.HEADERS.Photos;
+    const row = sh.data.find((r) => r[0] === 'M404in');
+    row[cols.indexOf('analysisStatus')] = 'gave_up'; row[cols.indexOf('analysisError')] = 'HTTP_404'; row[cols.indexOf('analysisAttempts')] = '5';
+    row[cols.indexOf('uploadedAt')] = new Date(Date.now() - 600000).toISOString();
+    props.setProperty('VISION_API_KEY', 'khoa-dung');
+
+    expect(gas.retryFailedAnalyses()).toBe(1);
+    expect(props.getProperty('VISION_MODEL_AUTO')).toBe('gemini-3.0-flash');
+    expect(calls.some((u) => u.includes('/models?'))).toBe(true);
+    expect(gas.findBy('Sessions', 'id', 'M404')).toMatchObject({ plate: '77-C1 399.97', plateStatus: 'read' });
+    // Lần sau dùng thẳng model mới, không hỏi lại danh sách
+    calls.length = 0;
+    gas.analyzeBlob_({ getBytes: () => [1] });
+    expect(calls).toEqual([expect.stringContaining('gemini-3.0-flash:generateContent')]);
+    // Chủ sân ép model bằng VISION_MODEL → không tự đổi
+    props.setProperty('VISION_MODEL', 'gemini-2.5-flash');
+    expect(gas.analyzeBlob_({ getBytes: () => [1] })).toMatchObject({ ok: false, error: 'HTTP_404' });
+    props.setProperty('VISION_MODEL', '');
+    // docLaiAnhAI: đưa ảnh lỗi trong 3 ngày vào đọc lại
+    expect(gas.docLaiAnhAI()).toBeGreaterThanOrEqual(0);
+    props.setProperty('VISION_API_KEY', '');
+  });
 });

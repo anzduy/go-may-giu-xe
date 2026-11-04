@@ -57,3 +57,30 @@ describe('tóm tắt và áp vào lượt gửi', () => {
     expect(s).toMatchObject({ plate: '59X1-999.99', plateStatus: 'manual' });
   });
 });
+
+import { chooseGeminiModel } from '../../web/shared/vision.js';
+describe('tự chọn model Gemini khi model cũ bị khai tử', () => {
+  const gen = ['generateContent', 'countTokens'];
+  it('chọn bản flash chính thức mới nhất, bỏ preview / lite / tts / embedding', () => {
+    const list = [
+      { name: 'models/gemini-2.5-flash', supportedGenerationMethods: gen },
+      { name: 'models/gemini-3.0-flash', supportedGenerationMethods: gen },
+      { name: 'models/gemini-3.0-flash-lite', supportedGenerationMethods: gen },
+      { name: 'models/gemini-3.5-flash-preview-10-2026', supportedGenerationMethods: gen },
+      { name: 'models/gemini-3.0-flash-preview-tts', supportedGenerationMethods: gen },
+      { name: 'models/gemini-3.0-pro', supportedGenerationMethods: gen },
+      { name: 'models/text-embedding-005', supportedGenerationMethods: ['embedContent'] },
+    ];
+    expect(chooseGeminiModel(list)).toBe('gemini-3.0-flash');
+  });
+  it('chỉ có bản preview thì vẫn dùng được', () => {
+    expect(chooseGeminiModel([{ name: 'models/gemini-4.0-flash-preview', supportedGenerationMethods: gen }])).toBe('gemini-4.0-flash-preview');
+  });
+  it('so số phiên bản đúng (3.10 > 3.9)', () => {
+    expect(chooseGeminiModel([{ name: 'models/gemini-3.9-flash', supportedGenerationMethods: gen }, { name: 'models/gemini-3.10-flash', supportedGenerationMethods: gen }])).toBe('gemini-3.10-flash');
+  });
+  it('không có model phù hợp → chuỗi rỗng', () => {
+    expect(chooseGeminiModel([{ name: 'models/gemini-3.0-pro', supportedGenerationMethods: gen }])).toBe('');
+    expect(chooseGeminiModel(undefined)).toBe('');
+  });
+});

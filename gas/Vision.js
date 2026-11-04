@@ -1,7 +1,8 @@
 // Gọi AI đọc ảnh xe: biển số, màu xe, số mũ bảo hiểm. Cấu hình trong Script Properties:
 //   VISION_PROVIDER = gemini (mặc định) | claude
 //   VISION_API_KEY  = khóa API của nhà cung cấp đã chọn (bỏ trống = tắt phân tích ảnh)
-//   VISION_MODEL    = (tùy chọn) mặc định gemini-2.5-flash / claude-haiku-5-5
+//   VISION_MODEL    = (tùy chọn) ép dùng model này. Bỏ trống thì: Gemini tự chọn bản "flash" mới nhất khi Google
+//                     báo model cũ không còn (404) và nhớ ở VISION_MODEL_AUTO; Claude mặc định claude-haiku-5-5
 // Câu lệnh, schema và kiểm tra kết quả nằm ở web/shared/vision.js (gas/Shared.js).
 
 var MAX_ANALYSIS_ATTEMPTS = 5;
@@ -56,7 +57,32 @@ function analyzeBlob_(blob) {
   var provider = (props.getProperty('VISION_PROVIDER') || 'gemini').toLowerCase();
   var b64 = Utilities.base64Encode(blob.getBytes());
   if (provider === 'claude') return callClaude_(key, props.getProperty('VISION_MODEL') || 'claude-haiku-5-5', b64);
-  return callGemini_(key, props.getProperty('VISION_MODEL') || 'gemini-2.5-flash', b64);
+  var forced = props.getProperty('VISION_MODEL');
+  var model = forced || props.getProperty('VISION_MODEL_AUTO') || 'gemini-2.5-flash';
+  var r = callGemini_(key, model, b64);
+  if (r.ok || r.error !== 'HTTP_404' || forced) return r;
+  // Model đã bị Google khai tử / đổi tên → tự tìm bản flash mới nhất, nhớ lại, thử lại một lần.
+  var next = discoverGeminiModel_(key);
+  if (!next || next === model) return { ok: false, error: 'HTTP_404' };
+  props.setProperty('VISION_MODEL_AUTO', next);
+  console.log('Đổi model Gemini: ' + model + ' → ' + next);
+  return callGemini_(key, next, b64);
+}
+
+/** Hỏi Google danh sách model, chọn bản "flash" mới nhất (chooseGeminiModel ở gas/Shared.js). */
+function discoverGeminiModel_(key) {
+  var models = [];
+  var pageToken = '';
+  for (var i = 0; i < 5; i++) {
+    var url = 'https://generativelanguage.googleapis.com/v1beta/models?pageSize=200' + (pageToken ? '&pageToken=' + encodeURIComponent(pageToken) : '');
+    var res = UrlFetchApp.fetch(url, { method: 'get', headers: { 'x-goog-api-key': key }, muteHttpExceptions: true });
+    if (res.getResponseCode() !== 200) break;
+    var j = JSON.parse(res.getContentText());
+    models = models.concat(j.models || []);
+    pageToken = j.nextPageToken || '';
+    if (!pageToken) break;
+  }
+  return chooseGeminiModel(models);
 }
 
 /** Phân tích (ngoài khóa) rồi ghi kết quả (trong khóa ngắn). */
@@ -122,10 +148,33 @@ function retryFailedAnalyses() {
   var todo = readObjects('Photos').filter(function (p) {
     if (!p.driveFileId || String(p.uploadedAt) >= cutoff) return false;
     if (p.analysisStatus === 'failed' || p.analysisStatus === 'pending') return true;
-    return p.analysisStatus === 'disabled' && String(p.takenAt) >= recent;
+    if (String(p.takenAt) < recent) return false;
+    if (p.analysisStatus === 'disabled') return true;
+    // Đã dừng thử vì lỗi CẤU HÌNH (khóa sai, model sai) — chủ sân sửa xong thì đọc lại (tối đa 10 lần mỗi ảnh)
+    return p.analysisStatus === 'gave_up' && /^HTTP_40[0-4]$/.test(p.analysisError || '') && Number(p.analysisAttempts || 0) < 10;
   }).sort(function (a, b) { return String(b.takenAt).localeCompare(String(a.takenAt)); }).slice(0, 10);
   todo.forEach(function (p) {
     try { analyzeAndStore_(strip_(p), DriveApp.getFileById(p.driveFileId).getBlob()); } catch (e) { console.error(e); }
   });
   return todo.length;
+}
+
+/**
+ * Chạy tay từ trình soạn thảo Apps Script (chọn hàm docLaiAnhAI → Chạy): đọc lại bằng AI mọi ảnh 3 ngày gần nhất
+ * chưa có kết quả (lỗi, đã dừng thử, AI chưa bật lúc chụp). Dùng sau khi sửa khóa / model AI.
+ */
+function docLaiAnhAI() {
+  var recent = new Date(Date.now() - 3 * 86400000).toISOString();
+  var n = withLock(function () {
+    var all = readObjects('Photos');
+    var redo = all.filter(function (p) {
+      return String(p.takenAt) >= recent && ['failed', 'gave_up', 'disabled', 'pending'].indexOf(p.analysisStatus) >= 0;
+    }).map(function (p) { var r = strip_(p); r.analysisStatus = 'pending'; r.analysisAttempts = 0; r.uploadedAt = '2000-01-01T00:00:00.000Z'; return r; });
+    if (redo.length) upsertObjects('Photos', redo, all);
+    return redo.length;
+  });
+  var done = 0;
+  for (var i = 0; i < 6 && done < n; i++) done += retryFailedAnalyses(); // mỗi lượt tối đa 10 ảnh
+  Logger.log('Đã đưa ' + n + ' ảnh vào hàng đọc lại; đã đọc ' + done + ' ảnh. Ảnh còn lại sẽ được đọc trong 5 phút tới.');
+  return n;
 }

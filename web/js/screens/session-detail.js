@@ -85,7 +85,7 @@ const pct = (v) => `${Math.round((Number(v) || 0) * 100)}%`;
 
 const AI_ERR = {
   DISABLED: 'AI chưa bật', HTTP_400: 'khóa AI sai hoặc yêu cầu lỗi', HTTP_401: 'khóa AI sai', HTTP_403: 'khóa AI sai / không có quyền',
-  HTTP_404: 'tên model AI sai', HTTP_429: 'hết lượt AI miễn phí, sẽ thử lại sau', HTTP_500: 'máy chủ AI lỗi, sẽ thử lại', HTTP_503: 'máy chủ AI quá tải, sẽ thử lại',
+  HTTP_404: 'không tìm thấy model AI (app đang tự chuyển sang model mới)', HTTP_429: 'hết lượt AI miễn phí, sẽ thử lại sau', HTTP_500: 'máy chủ AI lỗi, sẽ thử lại', HTTP_503: 'máy chủ AI quá tải, sẽ thử lại',
   REFUSAL: 'AI từ chối ảnh này', BAD_JSON: 'AI trả kết quả lỗi', EMPTY: 'AI không trả kết quả',
 };
 const AI_STATUS = {
@@ -118,7 +118,7 @@ async function analysisCard(s, ctx) {
   const card = h('div', { class: 'card', id: 'analysis-card', style: 'margin-top:10px' },
     h('b', {}, 'AI phân tích ảnh'),
     h('div', { class: 'analysis' }, h('div', {}, h('div', { class: 'muted' }, 'Lúc vào'), analysisLine(ain)),
-      h('div', {}, h('div', { class: 'muted' }, 'Lúc ra'), analysisLine(aout))),
+      h('div', {}, h('div', { class: 'muted' }, 'Lúc ra'), s.outPhotoId ? analysisLine(aout) : h('div', { class: 'muted' }, 'Chưa trả xe'))),
     note ? h('div', { class: 'muted' }, `So sánh: ${note}`) : null,
     ...alerts.map((a) => h('div', { class: a.status === 'new' ? 'warn-text' : 'muted' },
       `${a.level === 'high' ? '⛔' : '⚠️'} ${a.message}${a.status === 'resolved' ? ` — đã xử lý (${a.resolution})` : ''}`)));
