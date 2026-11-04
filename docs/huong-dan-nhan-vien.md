@@ -13,8 +13,10 @@
 
 1. Màn hình hiện **số phiếu tiếp theo** thật to (ví dụ **006**).
 2. Rút **phiếu trên cùng** của xấp — **liếc xem đúng số trên màn hình**.
-3. Chĩa camera vào xe sao cho **thấy biển số và chỗ treo mũ bảo hiểm** → bấm **CHỤP — GỬI XE**.
-4. Đưa phiếu cho khách. App tự nhảy sang số tiếp theo.
+3. **Thu tiền ngay** (mặc định **Tiền mặt**). Khách chuyển khoản → bấm **Chuyển khoản** (xem tin báo tiền về rồi
+   mới chụp). Khách muốn **trả lúc lấy xe** → bấm **Trả lúc ra** (nút chuyển màu cam).
+4. Chĩa camera vào xe sao cho **thấy biển số** → bấm **CHỤP — GỬI XE**.
+5. Đưa phiếu cho khách. App tự nhảy sang số tiếp theo, cách trả tiền tự về **Tiền mặt**.
 
 - **Phiếu trên tay khác số trên màn hình** (rơi phiếu, phiếu dính nhau): **chạm vào số** → gõ số đúng trên phiếu
   → chụp. Lượt sau app tự đề xuất số kế tiếp. Hoặc bấm **▦ Quét phiếu** để app đọc số từ mã QR.
@@ -27,7 +29,10 @@
 
 1. Khách đưa phiếu → **quét mã QR** (đưa vào khung camera) hoặc **gõ số** trên phiếu (gõ "37" là được) → **Tìm**.
 2. App hiện **ảnh xe lúc vào**: so với xe khách dắt ra.
-3. **Đúng xe** → thu **5.000đ** → bấm **✔ TRẢ XE** (app tự chụp ảnh xe lúc ra — giữ camera hướng vào xe).
+3. **Đúng xe** → xem dòng tiền:
+   - **"✔ Đã trả lúc gửi — không thu nữa"** → không thu, bấm **✔ TRẢ XE**.
+   - **"Thu 5.000đ"** (khách chọn trả lúc ra) → thu tiền, chọn **Tiền mặt** hoặc **Chuyển khoản** → bấm **✔ TRẢ XE**.
+   App tự chụp ảnh xe lúc ra — giữ camera hướng vào xe.
 4. **Khác xe** → bấm **Không khớp** → không trả xe, kiểm tra giấy tờ, tìm đúng xe trong mục **Trong bãi**, báo quản lý.
 
 - **"Phiếu đã trả xe lúc …"**: phiếu này đã dùng rồi — hỏi lại khách, báo quản lý.
@@ -39,7 +44,8 @@
 
 1. Mục **Trong bãi** → tìm xe khách chỉ (gõ vài số cuối biển số cho nhanh) → **chạm vào ảnh xe**.
 2. **Kiểm tra giấy tờ xe** (cà vẹt, CCCD) → bấm **Trả xe – mất phiếu**.
-3. Ghi chú bắt buộc (đã xem giấy tờ gì, tên khách) → **Chụp & trả xe** → thu **10.000đ**.
+3. Ghi chú bắt buộc (đã xem giấy tờ gì, tên khách) → **Chụp & trả xe** → thu đúng số app ghi: phí mất phiếu
+   **10.000đ** là tổng — khách đã trả 5.000đ lúc gửi thì chỉ thu thêm **5.000đ**.
 
 **Lúc gửi lỡ đưa nhầm phiếu** (khách cầm phiếu số khác với số app ghi): tìm đúng xe trong **Trong bãi** →
 chạm vào xe → **Gán lại số phiếu** → gõ số trên phiếu khách cầm + ghi chú.
@@ -87,7 +93,8 @@ App **vẫn gửi/trả xe bình thường**. Góc trên hiện "Mất mạng" v
 > Lỡ bấm **Thoát** khi chưa chốt ca: **không mất số liệu**. Đăng nhập lại **bằng đúng tên của mình** trên máy đó là thấy
 > tiếp tiền của ca. Người khác đăng nhập vào máy đó thì bắt đầu ca mới của họ.
 
-1. Mục **Chốt ca** → xem **Tiền cần nộp** (tiền các xe mình đã trả trong ca) và số xe còn trong bãi.
+1. Mục **Chốt ca** → xem **Tiền mặt cần nộp** (tiền mặt mình thu trong ca, cả lúc gửi lẫn lúc trả xe) và dòng
+   **Chuyển khoản** (khách đã chuyển vào tài khoản, chỉ để chủ sân đối chiếu, **không nộp**).
 2. Đếm tiền mặt cho khớp → bấm **CHỐT CA** → nộp tiền cho chủ sân.
 3. Có mạng thì app hiện "✓ Máy chủ đã xác nhận". Mất mạng vẫn chốt được, app tự gửi khi có mạng.
 4. Bấm **Thoát** (app nhắc nếu còn dữ liệu chưa gửi).

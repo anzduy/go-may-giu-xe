@@ -72,7 +72,7 @@ test('Lỡ thoát rồi đăng nhập lại (chưa chốt ca) → vẫn giữ s�
 
   await login(page, 'Tuấn', '1234');
   await page.click('#nav a[href="#shift"]');
-  await expect(page.locator('#shift-revenue')).toHaveText('Tiền cần nộp: 10.000đ');
+  await expect(page.locator('#shift-revenue')).toHaveText('Tiền mặt cần nộp: 10.000đ');
 
   page.on('dialog', onDialog);
   await page.click('#nav a:has-text("Thoát")');
@@ -80,7 +80,7 @@ test('Lỡ thoát rồi đăng nhập lại (chưa chốt ca) → vẫn giữ s�
   page.off('dialog', onDialog);
   await login(page, 'Hùng', '5678');
   await page.click('#nav a[href="#shift"]');
-  await expect(page.locator('#shift-revenue')).toHaveText('Tiền cần nộp: 0đ');
+  await expect(page.locator('#shift-revenue')).toHaveText('Tiền mặt cần nộp: 0đ');
 });
 
 test('Không có khóa AI trên máy chủ nhưng điện thoại tự đọc được → không báo "AI chưa bật"', async ({ page }) => {

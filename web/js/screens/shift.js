@@ -1,5 +1,6 @@
 // CHỐT CA: tổng kết ca của nhân viên đang đăng nhập (tính ngay trên máy, chạy được khi mất mạng),
-// gửi lên máy chủ để chủ sân đối chiếu. Tiền cần nộp = tiền các lượt mình TRẢ xe trong ca.
+// gửi lên máy chủ để chủ sân đối chiếu. Tiền mặt cần nộp = tiền mặt mình thu trong ca (thu lúc GỬI xe + thu lúc TRẢ xe);
+// tiền khách chuyển khoản đã vào tài khoản nên chỉ hiện để đối chiếu, không nộp.
 import * as db from '../db.js';
 import * as sync from '../sync.js';
 import { h, toast, uuid, timeVN, dateVN, asyncPhoto, fill } from '../ui.js';
@@ -7,15 +8,19 @@ import { formatNo, remainingTickets } from '../../shared/ticket.js';
 import { summarize } from '../../shared/report.js';
 import { VEHICLE_TYPES, formatMoney } from '../../shared/pricing.js';
 
+/** Ca chốt bằng bản app cũ chưa tách tiền mặt / chuyển khoản → coi như toàn tiền mặt. */
+const cashOf = (sum) => (sum.cash != null ? sum.cash : sum.revenue);
+
 function summaryCard(sum, title, extra) {
   const types = Object.entries(sum.byType || {}).map(([t, v]) => `${VEHICLE_TYPES[t] || t}: ${v.count} lượt · ${formatMoney(v.revenue)}`);
   return h('div', { class: 'card', id: 'shift-summary' },
     h('b', {}, title),
-    h('div', { class: 'fee', id: 'shift-revenue' }, `Tiền cần nộp: ${formatMoney(sum.revenue)}`),
+    h('div', { class: 'fee', id: 'shift-revenue' }, `Tiền mặt cần nộp: ${formatMoney(cashOf(sum))}`),
+    h('div', { class: 'muted', id: 'shift-transfer' }, `Chuyển khoản: ${formatMoney(sum.transfer || 0)} (đối chiếu tài khoản, không nộp) · Tổng thu ${formatMoney(sum.revenue)}`),
     h('ul', { class: 'timeline' },
       h('li', {}, `Trả xe: ${sum.count} lượt (trong đó mất phiếu: ${sum.lost})`),
       ...types.map((t) => h('li', { class: 'muted' }, t)),
-      h('li', {}, `Gửi xe: ${sum.checkins} lượt`),
+      h('li', {}, `Gửi xe: ${sum.checkins} lượt${sum.prepaid != null ? ` (thu ngay lúc gửi: ${sum.prepaid})` : ''}`),
       sum.provisional ? h('li', { class: 'warn-text' }, `Trả xe tạm chờ ghép: ${sum.provisional}`) : null,
       sum.conflicts ? h('li', { class: 'warn-text' }, `Lượt có xung đột: ${sum.conflicts} (quản lý kiểm tra)`) : null,
       sum.alerts ? h('li', {}, `Cảnh báo: ${sum.alerts} (chưa xử lý: ${sum.alertsOpen})`) : null,
@@ -56,7 +61,7 @@ export async function render(root, ctx) {
   );
 
   closeBtn.addEventListener('click', async () => {
-    if (!confirm(`Chốt ca? Tiền cần nộp: ${formatMoney(sum.revenue)}`)) return;
+    if (!confirm(`Chốt ca? Tiền mặt cần nộp: ${formatMoney(cashOf(sum))}${sum.transfer ? ` · chuyển khoản ${formatMoney(sum.transfer)}` : ''}`)) return;
     const endAt = ctx.nowIso();
     const shiftId = uuid();
     const final = summarize({ sessions: await db.allSessions(), batches, alerts: myAlerts, from: start, to: endAt, staffId: ctx.staff.id });
@@ -64,7 +69,7 @@ export async function render(root, ctx) {
     await db.setMeta('lastShift', { id: shiftId, startAt: start, endAt, summary: final });
     await db.setMeta('shiftStart', endAt);
     sync.kick();
-    toast(`Đã chốt ca · nộp ${formatMoney(final.revenue)}`, { ms: 5000 });
+    toast(`Đã chốt ca · nộp ${formatMoney(cashOf(final))} tiền mặt`, { ms: 5000 });
     ctx.navigate('#shift');
   });
 

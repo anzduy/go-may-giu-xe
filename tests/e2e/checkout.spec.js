@@ -33,10 +33,10 @@ test('US2: trả xe bằng quét QR và gõ số, tự chụp ảnh ra, ảnh v�
   const t0 = Date.now();
   await scan(page, encodeQr(today(), 1, SECRET));
   await expect(page.locator('#confirm-info')).toContainText('Phiếu 001');
-  await expect(page.locator('#confirm-info')).toContainText('Thu 5.000đ');
+  await expect(page.locator('#confirm-info')).toContainText('Đã trả lúc gửi (tiền mặt) — không thu nữa'); // mặc định thu lúc gửi
   await expect(page.locator('#checkout-view img.photo')).toHaveCount(1); // ảnh lúc vào
   await page.click('#checkout-btn');
-  await expect(toast(page)).toContainText('Đã trả xe phiếu 001 · Thu 5.000đ');
+  await expect(toast(page)).toContainText('Đã trả xe phiếu 001 · đã trả lúc gửi');
   expect(Date.now() - t0).toBeLessThan(8000); // SC-008
 
   // Gõ "2" (không cần số 0 ở đầu)

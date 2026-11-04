@@ -21,23 +21,45 @@ async function checkout(page, no) {
   await expect(page.locator('#toast')).toContainText(`Đã trả xe phiếu ${String(no).padStart(3, '0')}`);
 }
 
-test('US5: chốt ca — tiền cần nộp khớp tính tay, máy chủ xác nhận', async ({ page }) => {
+test('US5: chốt ca — tiền mặt cần nộp khớp tính tay, chuyển khoản tách riêng, máy chủ xác nhận', async ({ page }) => {
   await login(page);
-  await checkinN(page, 4);
+  await checkinN(page, 2); // 001, 002: thu tiền mặt lúc gửi (mặc định)
+  await page.click('#pay-in [data-pay="later"]'); // 003: khách trả lúc ra
+  await expect(page.locator('#pay-label')).toHaveText('Khách trả 5.000đ lúc lấy xe');
+  await page.click('#capture');
+  await expect(page.locator('#toast')).toContainText('phiếu 003 · trả lúc ra');
+  await expect(page.locator('#pay-in [data-pay="cash"]')).toHaveClass(/on/); // xe sau tự về tiền mặt
+  await page.click('#pay-in [data-pay="transfer"]'); // 004: chuyển khoản lúc gửi
+  await page.click('#capture');
+  await expect(page.locator('#toast')).toContainText('phiếu 004 · đã thu 5.000đ (chuyển khoản)');
   await page.click('#nav a[href="#checkout"]');
   await page.locator('#typed-no').waitFor();
-  for (const no of [1, 2, 3]) await checkout(page, no);
+  for (const no of [1, 2]) await checkout(page, no);
+  // 003 chưa trả → thu lúc ra, khách chuyển khoản
+  await page.fill('#typed-no', '3');
+  await page.click('#find-btn');
+  await expect(page.locator('#fee-due')).toHaveText('Thu 5.000đ');
+  await page.click('#pay-out [data-pay="transfer"]');
+  await page.click('#checkout-btn');
+  await expect(page.locator('#toast')).toContainText('Đã trả xe phiếu 003 · Thu 5.000đ (chuyển khoản)');
   await page.click('#nav a[href="#shift"]');
-  await expect(page.locator('#shift-revenue')).toHaveText('Tiền cần nộp: 15.000đ');
-  await expect(page.locator('#shift-summary')).toContainText('Gửi xe: 4 lượt');
+  await expect(page.locator('#shift-revenue')).toHaveText('Tiền mặt cần nộp: 10.000đ');
+  await expect(page.locator('#shift-transfer')).toContainText('Chuyển khoản: 10.000đ');
+  await expect(page.locator('#shift-transfer')).toContainText('Tổng thu 20.000đ');
+  await expect(page.locator('#shift-summary')).toContainText('Gửi xe: 4 lượt (thu ngay lúc gửi: 3)');
   await expect(page.locator('#shift-summary')).toContainText('Xe còn trong bãi: 1');
   page.once('dialog', (d) => d.accept());
   await page.click('#close-shift');
-  await expect(page.locator('#toast')).toContainText('Đã chốt ca · nộp 15.000đ');
+  await expect(page.locator('#toast')).toContainText('Đã chốt ca · nộp 10.000đ tiền mặt');
   await expect(page.locator('#shift-confirm')).toHaveText('✓ Máy chủ đã xác nhận', { timeout: 10000 });
-  await expect(page.locator('#shift-revenue').first()).toHaveText('Tiền cần nộp: 0đ'); // ca mới bắt đầu từ 0
+  await expect(page.locator('#shift-revenue').first()).toHaveText('Tiền mặt cần nộp: 0đ'); // ca mới bắt đầu từ 0
   const shift = [...mock.state.shifts.values()][0];
-  expect(shift.summary).toMatchObject({ revenue: 15000, count: 3, checkins: 4, inLot: 1 });
+  expect(shift.summary).toMatchObject({ revenue: 20000, cash: 10000, transfer: 10000, count: 3, checkins: 4, inLot: 1 });
+  expect(mock.session(mock.sessions().find((s) => s.ticketNo === 3).id)).toMatchObject({ inPaid: 0, outPaid: 5000, outPayMethod: 'transfer' });
+  await page.goto(`/#session?id=${mock.sessions().find((s) => s.ticketNo === 3).id}`);
+  await expect(page.locator('#pay-info')).toHaveText('Thu lúc trả 5.000đ (chuyển khoản)');
+  await page.goto(`/#session?id=${mock.sessions().find((s) => s.ticketNo === 4).id}`);
+  await expect(page.locator('#pay-info')).toHaveText('Thu lúc gửi 5.000đ (chuyển khoản)');
 });
 
 test('US5: nhân viên không vào được Quản lý', async ({ page }) => {
@@ -66,7 +88,8 @@ test('US5: quản lý xem báo cáo theo ngày và theo ca, đổi giá, thêm/k
 
   await login(page, 'Quản lý', '111111');
   await page.click('#nav a[href="#admin"]');
-  await expect(page.locator('#report-total')).toHaveText('Tổng: 5.000đ');
+  await expect(page.locator('#report-total')).toHaveText('Tổng: 10.000đ'); // 2 xe thu tiền mặt lúc gửi
+  await expect(page.locator('#report-money')).toHaveText('Tiền mặt 10.000đ · Chuyển khoản 0đ');
   await page.selectOption('#report-group', 'shift');
   await expect(page.locator('#report-rows .item')).toHaveCount(1);
   await expect(page.locator('#report-rows .item')).toContainText('Tuấn');

@@ -1,6 +1,8 @@
 // Báo cáo chốt ca / doanh thu. Logic thuần, dùng chung app (chốt ca khi offline), Apps Script và test.
-// Quy ước: tiền tính cho NGƯỜI TRẢ XE vào lúc trả (outAt); lượt gửi tính cho người nhận xe (inAt).
+// Quy ước: tiền thu lúc GỬI tính cho người nhận xe vào lúc gửi (inAt); tiền thu lúc TRẢ tính cho người trả xe (outAt).
+// Lượt bị hủy (hoàn tác, quản lý hủy) không tính tiền — đã thu trước thì trả lại khách.
 import { dateKey, computeSkipped } from './ticket.js';
+import { inAmount, outAmount, inMethod, outMethod } from './payment.js';
 
 const VN_MS = 7 * 3600 * 1000;
 const PAID = ['returned', 'lost'];
@@ -26,12 +28,20 @@ const within = (iso, from, to) => !!iso && String(iso) >= from && String(iso) <=
  */
 export function summarize({ sessions = [], alerts = [], batches = [], from, to, staffId }) {
   const paid = sessions.filter((s) => PAID.includes(s.status) && within(s.outAt, from, to) && (!staffId || s.outStaffId === staffId));
+  const prepaid = sessions.filter((s) => s.status !== 'cancelled' && inAmount(s) > 0 && within(s.inAt, from, to) && (!staffId || s.inStaffId === staffId));
+  const pays = [
+    ...prepaid.map((s) => ({ s, amount: inAmount(s), method: inMethod(s) })),
+    ...paid.map((s) => ({ s, amount: outAmount(s), method: outMethod(s) })).filter((x) => x.amount > 0),
+  ];
   const byType = {};
-  for (const s of paid) {
+  const counted = {};
+  const money = { cash: 0, transfer: 0 };
+  for (const { s, amount, method } of pays) {
     const t = s.vehicleType || 'motorbike';
     byType[t] = byType[t] || { count: 0, revenue: 0 };
-    byType[t].count++;
-    byType[t].revenue += Number(s.fee) || 0;
+    if (!counted[s.id]) { counted[s.id] = true; byType[t].count++; }
+    byType[t].revenue += amount;
+    money[method] += amount;
   }
   const checkins = sessions.filter((s) => s.status !== 'cancelled' && within(s.inAt, from, to) && (!staffId || s.inStaffId === staffId));
   const inLot = sessions.filter((s) => s.status === 'in_lot');
@@ -45,7 +55,10 @@ export function summarize({ sessions = [], alerts = [], batches = [], from, to, 
   return {
     from, to,
     count: paid.length,
-    revenue: paid.reduce((sum, s) => sum + (Number(s.fee) || 0), 0),
+    revenue: money.cash + money.transfer,
+    cash: money.cash, // tiền mặt nhân viên phải nộp
+    transfer: money.transfer, // khách chuyển khoản (đã vào tài khoản, không nộp)
+    prepaid: prepaid.length, // lượt thu tiền lúc gửi
     byType,
     lost: paid.filter((s) => s.status === 'lost').length,
     checkins: checkins.length,
