@@ -8,7 +8,8 @@ export function retryDelayMs(attempts) {
 }
 
 function ready(p, now) {
-  if (!p.blob) return false;
+  if (!p.blob && !p.bytes) return false;
+  if (p.uploadState === 'broken') return false;
   if (p.uploadState === 'pending') return true;
   if (p.uploadState === 'failed') return !p.nextAttemptAt || p.nextAttemptAt <= now;
   if (p.uploadState === 'uploading') return !p.uploadingAt || now - p.uploadingAt > STUCK_MS;
@@ -24,5 +25,5 @@ export function nextPhotoToUpload(photos, now) {
 
 /** Chỉ dọn ảnh ĐÃ sao lưu xong và cũ hơn 7 ngày. Ảnh chưa sao lưu KHÔNG BAO GIỜ bị dọn (FR-025). */
 export function shouldPrune(p, now, days = KEEP_DAYS) {
-  return p.uploadState === 'done' && !!p.blob && now - Date.parse(p.takenAt) > days * 86400000;
+  return p.uploadState === 'done' && !!(p.blob || p.bytes) && now - Date.parse(p.takenAt) > days * 86400000;
 }

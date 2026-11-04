@@ -78,9 +78,12 @@ function storeAnalysis_(photoId, result) {
     row.analysisAttempts = attempts;
     if (!result.ok) {
       row.analysisStatus = result.error === 'DISABLED' ? 'disabled' : attempts >= MAX_ANALYSIS_ATTEMPTS ? 'gave_up' : 'failed';
+      row.analysisError = String(result.error || '').slice(0, 200); // để app hiện lý do (khóa sai, hết lượt…)
+      row.rev = nextRev();
       upsertObjects('Photos', [row], photos);
       return;
     }
+    row.analysisError = '';
     var a = result.analysis;
     row.analysisStatus = a.status;
     row.plate = a.plate;
@@ -108,13 +111,19 @@ function storeAnalysis_(photoId, result) {
   });
 }
 
-/** Trigger 5 phút: phân tích lại ảnh lỗi/chưa phân tích (tối đa 10 ảnh mỗi lần). */
+/**
+ * Trigger 5 phút: phân tích lại ảnh lỗi / chưa phân tích (tối đa 10 ảnh mỗi lần, mới nhất trước).
+ * Gồm cả ảnh tải lên LÚC CHƯA CÓ KHÓA AI ("disabled") — thêm VISION_API_KEY sau thì ảnh cũ vẫn được đọc.
+ */
 function retryFailedAnalyses() {
   if (!visionConfigured_()) return 0;
   var cutoff = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+  var recent = new Date(Date.now() - 3 * 86400000).toISOString(); // ảnh "disabled" chỉ đọc lại trong 3 ngày gần nhất
   var todo = readObjects('Photos').filter(function (p) {
-    return (p.analysisStatus === 'failed' || p.analysisStatus === 'pending') && p.driveFileId && String(p.uploadedAt) < cutoff;
-  }).slice(0, 10);
+    if (!p.driveFileId || String(p.uploadedAt) >= cutoff) return false;
+    if (p.analysisStatus === 'failed' || p.analysisStatus === 'pending') return true;
+    return p.analysisStatus === 'disabled' && String(p.takenAt) >= recent;
+  }).sort(function (a, b) { return String(b.takenAt).localeCompare(String(a.takenAt)); }).slice(0, 10);
   todo.forEach(function (p) {
     try { analyzeAndStore_(strip_(p), DriveApp.getFileById(p.driveFileId).getBlob()); } catch (e) { console.error(e); }
   });

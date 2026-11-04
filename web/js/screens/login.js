@@ -2,7 +2,7 @@
 import { call } from '../api.js';
 import { getApiUrl, setApiUrl, DEFAULT_API_URL } from '../../config.js';
 import { ctx } from '../ctx.js';
-import { h } from '../ui.js';
+import { h, fill } from '../ui.js';
 
 export function render(root, { onLogin }) {
   const needUrl = getApiUrl() === DEFAULT_API_URL;
@@ -39,6 +39,6 @@ export function render(root, { onLogin }) {
     }
     onLogin(r.data);
   });
-  root.replaceChildren(form);
+  fill(root, form);
   name.focus();
 }

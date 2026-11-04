@@ -58,19 +58,26 @@ test('Lỡ thoát rồi đăng nhập lại (chưa chốt ca) → vẫn giữ s�
     await expect(page.locator('#toast')).toContainText(`Đã trả xe phiếu 00${no}`);
   }
   await expect(page.locator('#count-pending')).toHaveText('Chờ đồng bộ: 0', { timeout: 10000 });
-  let warned = '';
-  page.once('dialog', (d) => { warned = d.message(); d.accept(); });
+  // Có thể có 2 câu hỏi liên tiếp (còn thao tác chưa gửi + chưa chốt ca) → đồng ý tất cả, ghi lại nội dung
+  const warned = [];
+  const onDialog = (d) => { warned.push(d.message()); d.accept(); };
+  page.on('dialog', onDialog);
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
   await page.click('#nav a:has-text("Thoát")');
   await page.locator('#staff-name').waitFor();
-  expect(warned).toContain('CHƯA CHỐT CA');
+  page.off('dialog', onDialog);
+  expect(warned.join(' ')).toContain('CHƯA CHỐT CA');
+  expect(errors).toEqual([]);
 
   await login(page, 'Tuấn', '1234');
   await page.click('#nav a[href="#shift"]');
   await expect(page.locator('#shift-revenue')).toHaveText('Tiền cần nộp: 10.000đ');
 
-  page.once('dialog', (d) => d.accept());
+  page.on('dialog', onDialog);
   await page.click('#nav a:has-text("Thoát")');
   await page.locator('#staff-name').waitFor();
+  page.off('dialog', onDialog);
   await login(page, 'Hùng', '5678');
   await page.click('#nav a[href="#shift"]');
   await expect(page.locator('#shift-revenue')).toHaveText('Tiền cần nộp: 0đ');
@@ -108,4 +115,32 @@ test('Chi tiết lượt có nút lưu ảnh về điện thoại', async ({ pag
   const dl = page.waitForEvent('download');
   await page.click('[data-save="in"]');
   expect((await dl).suggestedFilename()).toBe(`GoMay_phieu001_${today()}_vao.jpg`);
+});
+
+test('Ảnh lưu trên máy dạng bytes (tránh lỗi Blob của Safari iPhone); chi tiết lượt không còn chữ "null"; hiện trạng thái AI', async ({ page }) => {
+  await login(page);
+  await page.click('#capture');
+  await expect(page.locator('#toast')).toContainText('phiếu 001');
+  const raw = await page.evaluate(() => new Promise((resolve) => {
+    const req = indexedDB.open('gomay');
+    req.onsuccess = () => {
+      const all = req.result.transaction('photos').objectStore('photos').getAll();
+      all.onsuccess = () => resolve(all.result.map((r) => ({ hasBlob: r.blob instanceof Blob, bytes: r.bytes instanceof ArrayBuffer ? r.bytes.byteLength : 0, type: r.type })));
+    };
+  }));
+  expect(raw).toHaveLength(1);
+  expect(raw[0]).toMatchObject({ hasBlob: false, type: 'image/jpeg' });
+  expect(raw[0].bytes).toBeGreaterThan(1000);
+
+  await expect.poll(() => mock.photos.size, { timeout: 15000 }).toBe(1); // ảnh dạng bytes vẫn tải lên được
+  await expect(page.locator('#count-photos')).toHaveText('Ảnh chờ sao lưu: 0');
+  await page.goto(`/#session?id=${mock.sessions()[0].id}`);
+  await expect(page.locator('#photo-pair img')).toHaveCount(1);
+  await expect(page.locator('.ai-status').first()).toContainText('AI chưa bật', { timeout: 10000 });
+  expect(await page.locator('#screen').innerText()).not.toMatch(/\bnull\b/);
+  for (const hash of ['#lot', '#shift', '#alerts', '#checkout']) {
+    await page.goto(`/${hash}`);
+    await page.waitForTimeout(400);
+    expect(await page.locator('#screen').innerText(), hash).not.toMatch(/\bnull\b/);
+  }
 });

@@ -2,7 +2,7 @@
 import { call } from '../api.js';
 import * as db from '../db.js';
 import * as sync from '../sync.js';
-import { h, toast, uuid, timeVN, dateVN } from '../ui.js';
+import { h, toast, uuid, timeVN, dateVN, fill } from '../ui.js';
 import { hashParams } from '../ctx.js';
 import { formatNo, dateKey } from '../../shared/ticket.js';
 import { formatMoney, priceRuleAt, VEHICLE_TYPES } from '../../shared/pricing.js';
@@ -14,10 +14,10 @@ const CONFLICT_VN = {
 };
 
 export async function render(root, ctx) {
-  if (!ctx.isManager()) { root.replaceChildren(h('div', { class: 'banner danger' }, 'Chỉ quản lý mới vào được')); return; }
+  if (!ctx.isManager()) { fill(root, h('div', { class: 'banner danger' }, 'Chỉ quản lý mới vào được')); return; }
   const tab = TABS[hashParams().tab] ? hashParams().tab : 'report';
   const body = h('div', { id: 'admin-body' });
-  root.replaceChildren(
+  fill(root, 
     h('div', { class: 'segmented', id: 'admin-tabs' }, Object.entries(TABS).map(([k, label]) =>
       h('button', { type: 'button', class: k === tab ? 'on' : '', 'data-tab': k, onclick: () => ctx.navigate(`#admin?tab=${k}`) }, label))),
     body,
@@ -42,19 +42,19 @@ async function reportTab(body, ctx) {
     h('option', { value: 'today' }, 'Hôm nay'), h('option', { value: 'week' }, '7 ngày qua'), h('option', { value: 'month' }, 'Tháng này'));
   const group = h('select', { id: 'report-group' }, h('option', { value: 'day' }, 'Theo ngày'), h('option', { value: 'shift' }, 'Theo ca'));
   const out = h('div', { id: 'report-out' });
-  body.replaceChildren(h('div', { class: 'row' }, period, group), out);
+  fill(body, h('div', { class: 'row' }, period, group), out);
 
   async function load() {
     const [from, to] = periodRange(period.value, ctx.now());
-    out.replaceChildren(h('div', { class: 'muted' }, 'Đang tải…'));
+    fill(out, h('div', { class: 'muted' }, 'Đang tải…'));
     const r = await call('report', { from, to, groupBy: group.value });
-    if (!r.ok) { out.replaceChildren(h('div', { class: 'banner warn' }, r.error.code === 'OFFLINE' ? 'Xem báo cáo cần có mạng' : r.error.message || 'Lỗi')); return; }
+    if (!r.ok) { fill(out, h('div', { class: 'banner warn' }, r.error.code === 'OFFLINE' ? 'Xem báo cáo cần có mạng' : r.error.message || 'Lỗi')); return; }
     const rows = r.data.rows;
     const total = rows.reduce((t, x) => ({ count: t.count + x.count, revenue: t.revenue + x.revenue, lost: t.lost + x.lost,
       provisional: t.provisional + x.provisional, conflicts: t.conflicts + x.conflicts, checkins: t.checkins + x.checkins }),
     { count: 0, revenue: 0, lost: 0, provisional: 0, conflicts: 0, checkins: 0 });
     const last = rows[rows.length - 1];
-    out.replaceChildren(
+    fill(out, 
       h('div', { class: 'card' },
         h('div', { class: 'fee', id: 'report-total' }, `Tổng: ${formatMoney(total.revenue)}`),
         h('div', { class: 'muted' }, `${total.count} lượt trả xe · ${total.checkins} lượt gửi · mất phiếu ${total.lost} · trả tạm ${total.provisional} · xung đột ${total.conflicts}`),
@@ -83,7 +83,7 @@ async function pricesTab(body, ctx) {
   });
   const save = h('button', { type: 'button', class: 'primary', id: 'price-save', style: 'width:100%;margin-top:12px' }, 'Lưu bảng giá');
   const msg = h('div', { class: 'muted', id: 'price-msg' }, 'Giá mới áp dụng cho xe gửi từ bây giờ; xe đang trong bãi giữ giá lúc gửi.');
-  body.replaceChildren(h('div', { class: 'card' }, ...rows.flat(), save, msg));
+  fill(body, h('div', { class: 'card' }, ...rows.flat(), save, msg));
   save.addEventListener('click', async () => {
     const d = Object.fromEntries(Object.entries(fields).map(([k, el]) => [k, Number(el.value)]));
     save.disabled = true;
@@ -104,7 +104,7 @@ async function staffTab(body) {
   const role = h('select', { id: 'new-staff-role' }, h('option', { value: 'staff' }, 'Nhân viên'), h('option', { value: 'manager' }, 'Quản lý'));
   const add = h('button', { type: 'button', class: 'primary', id: 'add-staff' }, 'Thêm');
   const msg = h('div', { class: 'error-text', id: 'staff-msg' });
-  body.replaceChildren(list, h('div', { class: 'card' }, h('b', {}, 'Thêm nhân viên'), name, pin, h('div', { class: 'row', style: 'margin-top:8px' }, role, add), msg));
+  fill(body, list, h('div', { class: 'card' }, h('b', {}, 'Thêm nhân viên'), name, pin, h('div', { class: 'row', style: 'margin-top:8px' }, role, add), msg));
 
   async function save(d) {
     const r = await call('saveStaff', d);
@@ -115,8 +115,8 @@ async function staffTab(body) {
   }
   async function load() {
     const r = await call('listStaff', {});
-    if (!r.ok) { list.replaceChildren(h('div', { class: 'banner warn' }, 'Xem danh sách nhân viên cần có mạng')); return; }
-    list.replaceChildren(...r.data.staff.map((s) => {
+    if (!r.ok) { fill(list, h('div', { class: 'banner warn' }, 'Xem danh sách nhân viên cần có mạng')); return; }
+    fill(list, ...r.data.staff.map((s) => {
       const resetBtn = h('button', { type: 'button', class: 'small' }, 'Đổi PIN');
       const toggle = h('button', { type: 'button', class: s.active ? 'small danger' : 'small' }, s.active ? 'Khóa' : 'Mở khóa');
       const logoutAll = h('button', { type: 'button', class: 'small ghost', title: 'Đăng xuất mọi máy của người này (mất điện thoại…)' }, 'Đăng xuất máy');
@@ -151,7 +151,7 @@ async function conflictsTab(body, ctx) {
   const all = await db.allSessions();
   const list = all.filter((s) => s.conflict && s.status !== 'cancelled' || s.status === 'provisional')
     .sort((a, b) => String(b.inAt || b.outAt).localeCompare(String(a.inAt || a.outAt)));
-  body.replaceChildren(h('p', { class: 'muted' }, 'Lượt cần kiểm tra (dữ liệu 3 ngày gần nhất trên máy này). Sửa số: vào "Trong bãi" → chạm xe → Gán lại số.'),
+  fill(body, h('p', { class: 'muted' }, 'Lượt cần kiểm tra (dữ liệu 3 ngày gần nhất trên máy này). Sửa số: vào "Trong bãi" → chạm xe → Gán lại số.'),
     h('div', { class: 'list', id: 'conflict-list' }, list.length ? list.map((s) => {
       const cancelBtn = h('button', { type: 'button', class: 'small danger' }, 'Hủy lượt');
       cancelBtn.addEventListener('click', async () => {
@@ -190,7 +190,7 @@ async function alertsTab(body, ctx) {
   const stats = h('div', { class: 'muted', id: 'alert-stats' });
   const list = h('div', { class: 'list', id: 'admin-alert-list' });
   const aiOff = (await db.getMeta('visionEnabled')) === false;
-  body.replaceChildren(
+  fill(body, 
     aiOff ? h('div', { class: 'banner warn', id: 'ai-off' }, '⚠ AI đọc ảnh CHƯA BẬT → chưa có cảnh báo tự động và chưa tự đọc biển số. Bật: Apps Script → ⚙️ Cài đặt dự án → Thuộc tính tập lệnh → thêm VISION_API_KEY (khóa Gemini miễn phí từ aistudio.google.com).') : null,
     h('div', { class: 'card' }, h('b', {}, 'Độ nhạy cảnh báo'), slider, label, save),
     h('div', { class: 'row' }, period), stats, list);
@@ -205,17 +205,17 @@ async function alertsTab(body, ctx) {
   async function load() {
     const [from, to] = periodRange(period.value, ctx.now());
     const r = await call('listAlerts', { from, to });
-    if (!r.ok) { list.replaceChildren(h('div', { class: 'banner warn' }, 'Xem cảnh báo cần có mạng')); return; }
+    if (!r.ok) { fill(list, h('div', { class: 'banner warn' }, 'Xem cảnh báo cần có mạng')); return; }
     const rows = r.data.alerts;
     const resolved = rows.filter((a) => a.status === 'resolved');
     const falseAlarm = resolved.filter((a) => a.resolution === 'false_alarm').length;
     stats.textContent = `${rows.length} cảnh báo · đang mở ${rows.length - resolved.length} · có vấn đề thật ${resolved.filter((a) => a.resolution === 'real_issue').length}`
       + ` · báo sai ${falseAlarm}${resolved.length ? ` (${Math.round((falseAlarm / resolved.length) * 100)}% số đã xử lý)` : ''}`;
-    list.replaceChildren(...rows.map((a) => h('div', { class: 'item' },
+    fill(list, ...rows.map((a) => h('div', { class: 'item' },
       h('div', { style: 'flex:1' }, h('b', {}, a.message),
         h('div', { class: 'muted' }, `${timeVN(a.createdAt)} ${dateVN(dateKey(a.createdAt))} · ${a.status === 'new' ? 'ĐANG MỞ' : RES_VN[a.resolution] || a.resolution}${a.note ? ` · ${a.note}` : ''}`)),
       h('button', { type: 'button', class: 'small', onclick: () => ctx.navigate(`#session?id=${encodeURIComponent(a.sessionId)}`) }, 'Xem'))));
-    if (!rows.length) list.replaceChildren(h('div', { class: 'muted' }, 'Chưa có cảnh báo nào'));
+    if (!rows.length) fill(list, h('div', { class: 'muted' }, 'Chưa có cảnh báo nào'));
   }
   period.addEventListener('change', load);
   await load();

@@ -51,12 +51,32 @@ export async function putSessions(list) {
   await tx.done;
 }
 
+// ---------- lưu ảnh dạng bytes (ArrayBuffer) thay vì Blob ----------
+// Safari trên iPhone có lỗi đã biết: Blob lưu trong IndexedDB có thể HỎNG sau khi app mở lại (đọc ra bị treo / lỗi
+// "WebKitBlobResource"). Lưu bytes thô tránh được lỗi này. Bản ghi cũ (blob) vẫn đọc được để tương thích.
+
+/** Ảnh (có .blob) → bản ghi lưu được (có .bytes). Phải gọi TRƯỚC khi mở giao dịch IndexedDB. */
+export async function toStored(p) {
+  if (!p) return p;
+  const { blob, ...rest } = p;
+  if (blob && typeof blob.arrayBuffer === 'function') return { ...rest, bytes: await blob.arrayBuffer(), type: blob.type || 'image/jpeg' };
+  if ('blob' in p && !blob) return { ...rest, bytes: null };
+  return p;
+}
+
+/** Bản ghi trong kho → ảnh có .blob để hiển thị / tải lên. */
+export function fromStored(r) {
+  if (!r) return r;
+  if (r.bytes) return { ...r, blob: new Blob([r.bytes], { type: r.type || 'image/jpeg' }) };
+  return r;
+}
+
 export async function getPhoto(id) {
-  return id ? (await open()).get('photos', id) : undefined;
+  return id ? fromStored(await (await open()).get('photos', id)) : undefined;
 }
 
 export async function photosBySession(sessionId) {
-  return (await open()).getAllFromIndex('photos', 'bySession', sessionId);
+  return (await (await open()).getAllFromIndex('photos', 'bySession', sessionId)).map(fromStored);
 }
 
 /**
@@ -64,6 +84,7 @@ export async function photosBySession(sessionId) {
  * lượt gửi, ảnh, và thao tác chờ gửi lên máy chủ.
  */
 export async function commit({ sessions = [], photos = [], ops = [] }) {
+  photos = await Promise.all(photos.map(toStored)); // chuyển ảnh sang bytes trước khi mở giao dịch
   const db = await open();
   const tx = db.transaction(['sessions', 'photos', 'outbox'], 'readwrite');
   for (const s of sessions) tx.objectStore('sessions').put(s);
@@ -100,14 +121,15 @@ export async function clearAll() {
 // ---------- ảnh: hàng đợi tải lên, lấy lại từ cloud, dọn ảnh cũ ----------
 
 export async function putPhoto(photo) {
-  return (await open()).put('photos', photo);
+  const rec = await toStored(photo);
+  return (await open()).put('photos', rec);
 }
 
 /** Ảnh chưa lên cloud (pending / uploading / failed) — đọc theo chỉ mục, không quét cả kho ảnh. */
 export async function unsentPhotos() {
   const db = await open();
   const lists = await Promise.all(['pending', 'uploading', 'failed'].map((st) => db.getAllFromIndex('photos', 'byUploadState', st)));
-  return lists.flat();
+  return lists.flat().map(fromStored);
 }
 
 export async function unsentPhotoCount() {
@@ -171,7 +193,11 @@ export async function prunePhotos(now = Date.now()) {
   let n = 0;
   let cursor = await tx.store.index('byUploadState').openCursor('done');
   while (cursor) {
-    if (shouldPrune(cursor.value, now)) { await cursor.update({ ...cursor.value, blob: null, prunedAt: new Date(now).toISOString() }); n++; }
+    if (shouldPrune(cursor.value, now)) {
+      const { blob, ...rest } = cursor.value;
+      await cursor.update({ ...rest, bytes: null, prunedAt: new Date(now).toISOString() });
+      n++;
+    }
     cursor = await cursor.continue();
   }
   await tx.done;
@@ -194,7 +220,7 @@ export async function putAlerts(list) {
 export async function putAnalyses(list) {
   const tx = (await open()).transaction('photos', 'readwrite');
   for (const a of list) {
-    const cur = (await tx.store.get(a.id)) || { id: a.id, sessionId: a.sessionId, kind: a.kind, uploadState: 'done', blob: null };
+    const cur = (await tx.store.get(a.id)) || { id: a.id, sessionId: a.sessionId, kind: a.kind, uploadState: 'done', bytes: null };
     await tx.store.put({ ...cur, analysis: a });
   }
   await tx.done;

@@ -60,6 +60,8 @@ export function photoEl(blob, alt, cls = 'photo', zoom = true) {
   if (!blob) return h('div', { class: 'photo-missing' }, 'Chưa xem được ảnh (máy đã chụp chưa sao lưu, đang mất mạng, hoặc ảnh đã quá 30 ngày)');
   const url = URL.createObjectURL(blob);
   const img = h('img', { class: cls, src: url, alt });
+  img.addEventListener('error', () => img.replaceWith(h('div', { class: 'photo-missing' }, h('div', { class: 'photo-reason' },
+    'Ảnh trên máy này bị lỗi (Safari). Nếu ảnh đã sao lưu, máy khác vẫn xem được.'))), { once: true });
   img.addEventListener('load', () => setTimeout(() => URL.revokeObjectURL(url), 60000), { once: true });
   if (zoom) img.addEventListener('click', () => {
     const big = URL.createObjectURL(blob);
@@ -101,4 +103,10 @@ export function asyncPhoto(photoId, alt, load, { cls = 'photo', zoom = true } = 
   };
   attempt();
   return holder;
+}
+
+/** Như el.replaceChildren(...) nhưng BỎ QUA null/false (replaceChildren in ra chữ "null"). */
+export function fill(el, ...children) {
+  el.replaceChildren(...children.flat().filter((c) => c != null && c !== false));
+  return el;
 }

@@ -2,7 +2,7 @@
 import { call } from '../api.js';
 import * as db from '../db.js';
 import * as sync from '../sync.js';
-import { h, toast, dateVN, timeVN } from '../ui.js';
+import { h, toast, dateVN, timeVN, fill } from '../ui.js';
 import { paginate } from '../print-layout.js';
 import { formatNo, dateKey } from '../../shared/ticket.js';
 import { lostFee, formatMoney } from '../../shared/pricing.js';
@@ -25,7 +25,7 @@ function ticketEl(date, t, feeText) {
 }
 
 export async function render(root, ctx) {
-  if (!ctx.isManager()) { root.replaceChildren(h('div', { class: 'banner danger' }, 'Chỉ quản lý mới in phiếu được')); return; }
+  if (!ctx.isManager()) { fill(root, h('div', { class: 'banner danger' }, 'Chỉ quản lý mới in phiếu được')); return; }
   const prices = await db.getMeta('prices', []);
   const feeText = formatMoney(lostFee(prices, ctx.nowIso()));
   const dateInput = h('input', { id: 'batch-date', type: 'date', value: (() => { const k = dateKey(ctx.now() + 86400000); return `${k.slice(0, 4)}-${k.slice(4, 6)}-${k.slice(6, 8)}`; })() });
@@ -36,7 +36,7 @@ export async function render(root, ctx) {
   const area = h('div', { class: 'print-area', id: 'print-area' });
   const printBtn = h('button', { type: 'button', class: 'primary hidden', id: 'print-btn', onclick: () => window.print() }, '🖨 In');
 
-  root.replaceChildren(
+  fill(root, 
     h('div', { class: 'card no-print' },
       h('b', {}, 'Tạo bộ phiếu QR'),
       h('label', { for: 'batch-date' }, 'Ngày dùng phiếu'), dateInput,
@@ -49,15 +49,15 @@ export async function render(root, ctx) {
 
   function showTickets(data) {
     const pages = paginate(data.tickets);
-    area.replaceChildren(...pages.map((p) => h('div', { class: 'print-page' }, p.map((t) => ticketEl(data.date, t, feeText)))));
+    fill(area, ...pages.map((p) => h('div', { class: 'print-page' }, p.map((t) => ticketEl(data.date, t, feeText)))));
     msg.textContent = `Phiếu ${formatNo(data.fromNo)}–${formatNo(data.toNo)} ngày ${dateVN(data.date)} · ${pages.length} trang A4. Bấm "In" (hoặc lưu PDF).`;
     printBtn.classList.remove('hidden');
   }
 
   async function loadBatches() {
     const r = await call('listBatches', {});
-    if (!r.ok) { list.replaceChildren(h('div', { class: 'muted' }, 'Cần có mạng để xem danh sách')); return; }
-    list.replaceChildren(...r.data.batches.map((b) => {
+    if (!r.ok) { fill(list, h('div', { class: 'muted' }, 'Cần có mạng để xem danh sách')); return; }
+    fill(list, ...r.data.batches.map((b) => {
       const again = h('button', { type: 'button', class: 'small' }, 'In lại');
       again.addEventListener('click', async () => {
         const rr = await call('reprintBatch', { date: b.date, fromNo: b.fromNo, toNo: b.toNo });

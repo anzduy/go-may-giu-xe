@@ -41,6 +41,7 @@ function push(d, auth) {
       r.results.forEach(function (res) { if (res.session && byId[res.session.id]) res.session = byId[res.session.id]; });
     }
     if (r.shifts.length) upsertObjects('Shifts', r.shifts);
+    if (r.changed.length) applyEarlyAnalyses_(r.changed);
     var now = new Date().toISOString();
     appendObjects('Ops', r.results.filter(function (x) { return x.opId; }).map(function (x) {
       var op = ops.filter(function (o) { return o.opId === x.opId; })[0];
@@ -77,9 +78,9 @@ function pull(d) {
     prices: readObjects('Prices').map(strip_),
     staffNames: staffNames_(),
     config: { alertThreshold: Number(getConfig('alertThreshold', DEFAULT_THRESHOLD)) || DEFAULT_THRESHOLD, visionEnabled: visionConfigured_() },
+    // Mọi trạng thái AI (kể cả chưa bật / lỗi) để app hiện lý do chưa có biển số.
     analyses: readObjects('Photos').map(strip_).filter(function (p) {
-      return p.analysisStatus && ['done', 'unclear', 'manual'].indexOf(p.analysisStatus) >= 0
-        && (full ? days.indexOf(dateKey(p.takenAt)) >= 0 : Number(p.rev) > sinceRev);
+      return p.analysisStatus && (full ? days.indexOf(dateKey(p.takenAt)) >= 0 : Number(p.rev) > sinceRev);
     }).map(analysisOf_),
     alerts: readObjects('Alerts').map(strip_).filter(function (a) {
       return full ? (a.status === 'new' || days.indexOf(dateKey(a.createdAt)) >= 0) : Number(a.rev) > sinceRev;
@@ -96,7 +97,33 @@ function staffNames_() {
 
 /** Phần phân tích AI của một dòng Photos (gửi cho máy để xem/sửa, không kèm ảnh). */
 function analysisOf_(p) {
-  return { id: p.id, sessionId: p.sessionId, kind: p.kind, analysisStatus: p.analysisStatus, plate: p.plate || '',
+  return { id: p.id, sessionId: p.sessionId, kind: p.kind, analysisStatus: p.analysisStatus, analysisError: p.analysisError || '', plate: p.plate || '',
     color: p.color || 'không rõ', vehicleType: p.vehicleTypeSeen || 'other', helmetsOnVehicle: Number(p.helmetsOnVehicle) || 0,
     helmetsWorn: Number(p.helmetsWorn) || 0, otherItems: p.otherItems || [], confidence: p.confidence || { plate: 0, color: 0, helmets: 0 } };
+}
+
+/**
+ * Ảnh có thể lên máy chủ TRƯỚC thao tác của lượt đó (máy mất mạng giữa chừng, bản app cũ).
+ * Khi lượt gửi / trả xe đến sau: gắn kết quả AI ảnh lúc vào (biển số, tóm tắt) và so sánh để cảnh báo.
+ * Gọi bên trong withLock của push().
+ */
+function applyEarlyAnalyses_(changed) {
+  var threshold = Number(getConfig('alertThreshold', DEFAULT_THRESHOLD)) || DEFAULT_THRESHOLD;
+  var photos = null;
+  changed.forEach(function (c) {
+    if (c.inPhotoId && c.plateStatus === 'pending' && !c.inSummary) {
+      photos = photos || readObjects('Photos');
+      var p = photos.filter(function (x) { return x.id === c.inPhotoId; })[0];
+      if (p && ANALYZED.indexOf(p.analysisStatus) >= 0) {
+        var sessions = readObjects('Sessions');
+        var s = sessions.filter(function (x) { return x.id === c.id; })[0];
+        if (s) {
+          var updated = applyInAnalysis(strip_(s), analysisOf_(p), threshold);
+          updated.rev = nextRev();
+          upsertObjects('Sessions', [updated], sessions);
+        }
+      }
+    }
+    if (c.outPhotoId && (c.status === 'returned' || c.status === 'lost')) runCompare_(c.id, threshold);
+  });
 }

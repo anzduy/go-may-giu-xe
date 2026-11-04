@@ -4,7 +4,7 @@
 // - Màn hình #alerts: danh sách cảnh báo còn mở.
 import { call } from '../api.js';
 import * as db from '../db.js';
-import { h, toast, timeVN, asyncPhoto } from '../ui.js';
+import { h, toast, timeVN, asyncPhoto, fill } from '../ui.js';
 import { formatNo } from '../../shared/ticket.js';
 
 const RESOLUTIONS = [
@@ -88,13 +88,13 @@ async function checkNew() {
   const holder = document.getElementById('alert-float');
   const visible = mine.filter((a) => !later.has(a.id));
   const current = visible.find((a) => a.id === shownId) || visible[visible.length - 1];
-  if (!current) { holder.replaceChildren(); shownId = null; return; }
+  if (!current) { fill(holder, ); shownId = null; return; }
   if (current.id === shownId && holder.firstChild) return;
   shownId = current.id;
   const session = await db.getSession(current.sessionId);
-  holder.replaceChildren(alertCard(current, session, {
+  fill(holder, alertCard(current, session, {
     onDone: () => { shownId = null; checkNew(); },
-    onLater: () => { later.add(current.id); shownId = null; holder.replaceChildren(); checkNew(); },
+    onLater: () => { later.add(current.id); shownId = null; fill(holder, ); checkNew(); },
   }));
 }
 
@@ -116,14 +116,14 @@ export function initAlerts(ctx) {
 export async function render(root, ctx) {
   const list = h('div', { class: 'list', id: 'alert-list' });
   const aiOff = (await db.getMeta('visionEnabled')) === false;
-  root.replaceChildren(
+  fill(root, 
     aiOff ? h('div', { class: 'banner warn', id: 'ai-off' }, '⚠ AI đọc ảnh CHƯA BẬT nên app chưa thể cảnh báo khác xe / thiếu mũ. Chủ sân cần thêm VISION_API_KEY trong Apps Script (xem README, mục 1b).') : null,
     h('p', { class: 'muted' }, 'Cảnh báo AI khi ảnh lúc ra khác ảnh lúc vào. Chỉ là gợi ý — xem kỹ 2 ảnh.'), list);
   async function paint() {
     const open = (await db.allAlerts()).filter((a) => a.status === 'new' && (ctx.isManager() || a.notifyStaffId === ctx.staff.id))
       .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
-    if (!open.length) { list.replaceChildren(h('div', { class: 'muted' }, '✓ Không có cảnh báo nào đang mở')); return; }
-    list.replaceChildren(...await Promise.all(open.map(async (a) => alertCard(a, await db.getSession(a.sessionId), { onDone: paint }))));
+    if (!open.length) { fill(list, h('div', { class: 'muted' }, '✓ Không có cảnh báo nào đang mở')); return; }
+    fill(list, ...await Promise.all(open.map(async (a) => alertCard(a, await db.getSession(a.sessionId), { onDone: paint }))));
   }
   window.addEventListener('alerts:changed', paint);
   await paint();

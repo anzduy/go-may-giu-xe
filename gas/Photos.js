@@ -29,7 +29,7 @@ function uploadPhoto(d, auth) {
     var row = {
       id: photoId, sessionId: String(d.sessionId), kind: kind, takenAt: takenAt, deviceId: auth.deviceId,
       driveFileId: file.getId(), uploadedAt: new Date().toISOString(),
-      analysisStatus: visionConfigured_() ? 'pending' : 'disabled', analysisAttempts: 0,
+      analysisStatus: visionConfigured_() ? 'pending' : 'disabled', analysisAttempts: 0, rev: nextRev(),
     };
     upsertObjects('Photos', [row], rows);
     return { row: row, duplicate: false };
