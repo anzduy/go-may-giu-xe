@@ -138,6 +138,12 @@ function storeAnalysis_(photoId, result) {
   });
 }
 
+var AI_ERROR_VN = {
+  HTTP_400: 'khóa AI sai hoặc yêu cầu lỗi', HTTP_401: 'khóa AI sai', HTTP_403: 'khóa không có quyền dùng model này',
+  HTTP_404: 'không tìm thấy model', HTTP_429: 'hết lượt / vượt giới hạn gói', HTTP_500: 'máy chủ AI lỗi', HTTP_503: 'máy chủ AI quá tải',
+  REFUSAL: 'AI từ chối ảnh', BAD_JSON: 'AI trả kết quả hỏng', EMPTY: 'AI không trả kết quả', EXCEPTION: 'lỗi khi gọi (hết giờ chờ / mạng)',
+};
+
 /** Có ảnh khác đang được đọc trong 3 phút qua thì bỏ qua (tránh trigger 5 phút và docLaiAnhAI đọc trùng). */
 var CLAIM_MS = 3 * 60 * 1000;
 
@@ -175,23 +181,28 @@ function photosToRetry_() {
 /**
  * Đọc lại tối đa `max` ảnh trong tối đa `budgetMs` (Apps Script cắt ngang sau 6 phút).
  * Gặp "hết lượt" (HTTP 429) thì dừng ngay — gọi tiếp chỉ phí lượt; lượt sau sẽ thử lại.
- * @returns {{ done:number, left:number, stoppedBy: ''|'time'|'quota' }}
+ * @returns {{ done:number, ok:number, errors:Object, left:number, stoppedBy: ''|'time'|'quota' }}
+ *   done = số ảnh đã THỬ; ok = số ảnh đọc ĐƯỢC; errors = { mã lỗi: số ảnh }
  */
 function runRetryBatch_(max, budgetMs) {
   var t0 = Date.now();
   var list = photosToRetry_();
   var done = 0;
+  var ok = 0;
+  var errors = {};
   var stoppedBy = '';
   for (var i = 0; i < list.length && done < max; i++) {
     if (Date.now() - t0 > budgetMs) { stoppedBy = 'time'; break; }
     var row = claimPhoto_(list[i].id, ['failed', 'pending', 'disabled', 'gave_up']);
     if (!row) continue;
     var r;
-    try { r = analyzeAndStore_(row, DriveApp.getFileById(row.driveFileId).getBlob()); } catch (e) { console.error(e); r = { ok: false }; }
+    try { r = analyzeAndStore_(row, DriveApp.getFileById(row.driveFileId).getBlob()); } catch (e) { console.error(e); r = { ok: false, error: 'EXCEPTION' }; }
     done++;
+    if (r && r.ok) ok++;
+    else { var code = (r && r.error) || 'UNKNOWN'; errors[code] = (errors[code] || 0) + 1; }
     if (r && r.error === 'HTTP_429') { stoppedBy = 'quota'; break; }
   }
-  return { done: done, left: Math.max(0, photosToRetry_().length), stoppedBy: stoppedBy };
+  return { done: done, ok: ok, errors: errors, left: Math.max(0, photosToRetry_().length), stoppedBy: stoppedBy };
 }
 
 /** Trigger 5 phút: đọc lại ảnh lỗi / chưa đọc (tối đa 10 ảnh, ~2 phút mỗi lần). */
@@ -222,6 +233,7 @@ function docLaiAnhAI() {
   var r = runRetryBatch_(1000, 4 * 60 * 1000);
   var why = r.stoppedBy === 'quota' ? ' Google báo HẾT LƯỢT miễn phí — app tự đọc tiếp khi có lượt.'
     : r.stoppedBy === 'time' ? ' Hết thời gian chạy — app tự đọc tiếp mỗi 5 phút.' : '';
-  Logger.log('Đã đọc ' + r.done + ' ảnh. Còn ' + r.left + ' ảnh chờ.' + why);
+  var errText = Object.keys(r.errors).map(function (k) { return k + ' × ' + r.errors[k] + ' (' + (AI_ERROR_VN[k] || 'lỗi khác') + ')'; }).join(', ');
+  Logger.log('Đã thử ' + r.done + ' ảnh: đọc được ' + r.ok + ', lỗi ' + (r.done - r.ok) + (errText ? ' — ' + errText : '') + '. Còn ' + r.left + ' ảnh chờ.' + why);
   return r.done;
 }

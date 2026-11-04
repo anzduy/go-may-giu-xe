@@ -561,7 +561,7 @@ describe('Apps Script (giả lập)', () => {
     expect(gen).toBe(2); // ảnh 1 đọc được, ảnh 2 gặp 429 → DỪNG, không gọi tiếp ảnh 3, 4
     expect(n).toBe(2);
     expect(logs.join(' ')).toContain('HẾT LƯỢT');
-    expect(logs.join(' ')).toMatch(/Đã đọc 2 ảnh\. Còn \d+ ảnh chờ/);
+    expect(logs.join(' ')).toMatch(/Đã thử 2 ảnh: đọc được 1, lỗi 1 — HTTP_429 × 1 \(hết lượt \/ vượt giới hạn gói\)\. Còn \d+ ảnh chờ/);
     // claim: ảnh đang được đọc (analyzingAt mới) không bị nhận lần hai
     const row = sh.data.find((r) => r[0] === 'Q3in');
     row[cols.indexOf('analyzingAt')] = new Date().toISOString();
