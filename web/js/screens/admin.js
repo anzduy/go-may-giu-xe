@@ -51,13 +51,16 @@ async function reportTab(body, ctx) {
     const r = await call('report', { from, to, groupBy: group.value });
     if (!r.ok) { fill(out, h('div', { class: 'banner warn' }, r.error.code === 'OFFLINE' ? 'Xem báo cáo cần có mạng' : r.error.message || 'Lỗi')); return; }
     const rows = r.data.rows;
+    const cashOf = (x) => (x.cash != null ? x.cash : x.revenue);
     const total = rows.reduce((t, x) => ({ count: t.count + x.count, revenue: t.revenue + x.revenue, lost: t.lost + x.lost,
-      provisional: t.provisional + x.provisional, conflicts: t.conflicts + x.conflicts, checkins: t.checkins + x.checkins }),
-    { count: 0, revenue: 0, lost: 0, provisional: 0, conflicts: 0, checkins: 0 });
+      provisional: t.provisional + x.provisional, conflicts: t.conflicts + x.conflicts, checkins: t.checkins + x.checkins,
+      cash: t.cash + cashOf(x), transfer: t.transfer + (x.transfer || 0) }),
+    { count: 0, revenue: 0, lost: 0, provisional: 0, conflicts: 0, checkins: 0, cash: 0, transfer: 0 });
     const last = rows[rows.length - 1];
     fill(out, 
       h('div', { class: 'card' },
         h('div', { class: 'fee', id: 'report-total' }, `Tổng: ${formatMoney(total.revenue)}`),
+        h('div', { id: 'report-money' }, `Tiền mặt ${formatMoney(total.cash)} · Chuyển khoản ${formatMoney(total.transfer)}`),
         h('div', { class: 'muted' }, `${total.count} lượt trả xe · ${total.checkins} lượt gửi · mất phiếu ${total.lost} · trả tạm ${total.provisional} · xung đột ${total.conflicts}`),
         last && group.value === 'day' ? h('div', { class: 'muted' }, `Phiếu hôm cuối: in ${last.ticketsPrinted}, đã dùng ${last.ticketsUsed}, bỏ qua ${last.skipped.length}`
           + ` · xe đang trong bãi ${last.inLot}${last.overnight ? ` (tồn qua đêm ${last.overnight})` : ''}`) : null),
@@ -65,7 +68,8 @@ async function reportTab(body, ctx) {
         h('div', { style: 'flex:1' }, h('b', {}, x.label),
           h('div', { class: 'muted' }, `${x.count} lượt · mất phiếu ${x.lost}${x.provisional ? ` · trả tạm ${x.provisional}` : ''}${x.conflicts ? ` · xung đột ${x.conflicts}` : ''}`),
           h('div', { class: 'muted' }, Object.entries(x.byType).map(([t, v]) => `${VEHICLE_TYPES[t] || t} ${v.count}`).join(' · '))),
-        h('div', { class: 'info-line' }, formatMoney(x.revenue)))) : h('div', { class: 'muted' }, group.value === 'shift' ? 'Chưa có ca nào được chốt' : 'Không có dữ liệu')),
+        h('div', { style: 'text-align:right' }, h('div', { class: 'info-line' }, formatMoney(x.revenue)),
+          x.transfer ? h('div', { class: 'muted' }, `CK ${formatMoney(x.transfer)}`) : null))) : h('div', { class: 'muted' }, group.value === 'shift' ? 'Chưa có ca nào được chốt' : 'Không có dữ liệu')),
     );
   }
   period.addEventListener('change', load);

@@ -5,6 +5,7 @@ import { h, timeVN, dateVN, asyncPhoto, toast, uuid, fill } from '../ui.js';
 import { hashParams } from '../ctx.js';
 import { formatNo } from '../../shared/ticket.js';
 import { VEHICLE_TYPES, formatMoney } from '../../shared/pricing.js';
+import { PAY_METHODS, inAmount, outAmount, inMethod, outMethod } from '../../shared/payment.js';
 import { call } from '../api.js';
 import { COLOR_GROUPS } from '../../shared/vision.js';
 import { compareNote } from '../../shared/compare.js';
@@ -41,7 +42,8 @@ export async function render(root, ctx) {
 
   fill(root, 
     h('div', { class: 'info-line' }, `Phiếu ${formatNo(s.ticketNo)}${s.noTicket ? ' (không phiếu)' : ''}${s.plate ? ` · ${s.plate}` : ''}`),
-    h('div', { class: 'muted' }, `${VEHICLE_TYPES[s.vehicleType] || ''} · ${STATUS_VN[s.status] || s.status}${s.fee != null ? ` · Đã thu ${formatMoney(s.fee)}` : ''}`),
+    h('div', { class: 'muted' }, `${VEHICLE_TYPES[s.vehicleType] || ''} · ${STATUS_VN[s.status] || s.status}`),
+    h('div', { class: 'muted', id: 'pay-info' }, moneyText(s)),
     h('div', { class: 'side-by-side', id: 'photo-pair', style: 'margin-top:10px' },
       h('figure', {}, asyncPhoto(s.inPhotoId, 'Ảnh lúc vào', db.getPhotoResult), h('figcaption', {}, `Lúc vào ${timeVN(s.inAt)}`)),
       h('figure', {}, s.outPhotoId ? asyncPhoto(s.outPhotoId, 'Ảnh lúc ra', db.getPhotoResult) : h('div', { class: 'photo-missing' }, 'Chưa trả xe'),
@@ -79,6 +81,16 @@ function plateEditor(s, ctx) {
   });
   return h('div', { class: 'card', style: 'margin-top:10px' }, h('label', { for: 'plate-input' }, 'Biển số'),
     h('div', { class: 'keypad-row' }, input, save), status);
+}
+
+/** "Thu lúc gửi 5.000đ (tiền mặt)" / "Chưa thu — khách trả lúc lấy xe". */
+function moneyText(s) {
+  const parts = [];
+  if (inAmount(s)) parts.push(`Thu lúc gửi ${formatMoney(inAmount(s))} (${PAY_METHODS[inMethod(s)].toLowerCase()})`);
+  if (s.fee != null && outAmount(s)) parts.push(`Thu lúc trả ${formatMoney(outAmount(s))} (${PAY_METHODS[outMethod(s)].toLowerCase()})`);
+  if (!parts.length && s.status === 'in_lot') return `Chưa thu — khách trả ${formatMoney(s.priceAtIn)} lúc lấy xe`;
+  if (s.status === 'cancelled' && inAmount(s)) parts.push('lượt đã hủy — trả lại tiền cho khách');
+  return parts.join(' · ');
 }
 
 const pct = (v) => `${Math.round((Number(v) || 0) * 100)}%`;

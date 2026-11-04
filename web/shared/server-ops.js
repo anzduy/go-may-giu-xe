@@ -3,6 +3,7 @@
 import { validateForCheckin, maxTicketNo, dateKey } from './ticket.js';
 import { priceFor, lostFee } from './pricing.js';
 import { summarize } from './report.js';
+import { checkinPayment, checkoutPayment } from './payment.js';
 import { applyOp, createProvisional, STATUS, PLATE_STATUS } from './sessions.js';
 
 /** Trạng thái máy chủ dùng cho applyPush. sessions: Map id → lượt gửi. */
@@ -44,13 +45,14 @@ function opCreateSession(state, op) {
     inDeviceId: op.deviceId, inPhotoId: p.inPhotoId, priceAtIn: priceFor(state.prices, vehicleType, p.inAt),
     status: STATUS.IN_LOT, note: p.note || '',
   };
+  Object.assign(session, checkinPayment(p.payIn, session.priceAtIn));
   if (conflict) session.conflict = conflict;
 
   const changed = [];
   let action = 'create';
   if (provisional && !conflict) {
     session = { ...session, status: STATUS.RETURNED, outAt: provisional.outAt, outStaffId: provisional.outStaffId,
-      outPhotoId: provisional.outPhotoId, fee: session.priceAtIn, note: provisional.note };
+      outPhotoId: provisional.outPhotoId, ...checkoutPayment(session, session.priceAtIn, provisional.outPayMethod), note: provisional.note };
     const merged = { ...provisional, status: STATUS.CANCELLED, mergedInto: session.id };
     state.sessions.set(merged.id, merged);
     changed.push(merged);
@@ -84,7 +86,7 @@ function opProvisional(state, op) {
   const open = findOpen(state, p.ticketDate, p.ticketNo, STATUS.IN_LOT);
   if (open) {
     // Máy chủ đã có lượt gửi → trả luôn lượt đó.
-    return opTransition(state, { ...op, type: 'checkout', payload: { sessionId: open.id, outAt: p.outAt, outPhotoId: p.outPhotoId } }, 'checkout');
+    return opTransition(state, { ...op, type: 'checkout', payload: { sessionId: open.id, outAt: p.outAt, outPhotoId: p.outPhotoId, payMethod: p.payMethod } }, 'checkout');
   }
   const r = createProvisional(p, op.staffId);
   if (r.error) return { status: 'rejected', error: r.error };

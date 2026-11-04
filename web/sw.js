@@ -1,15 +1,15 @@
 // Service Worker: lưu giao diện để mở được app khi mất mạng.
 // Chỉ xử lý yêu cầu GET cùng tên miền; yêu cầu tới Apps Script đi thẳng ra mạng.
-const CACHE = 'gomay-shell-v1.0.0-f19ac3a0d5';
+const CACHE = 'gomay-shell-v1.0.0-7a490348f5';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'config.js',
   'css/app.css', 'css/print.css',
   'icons/icon-192.png', 'icons/icon-512.png',
   'vendor/jsQR.js', 'vendor/qrcode-generator.js', 'vendor/idb.js',
-  'js/app.js', 'js/ctx.js', 'js/plate-reader.js', 'js/analysis.js', 'js/api.js', 'js/photo-queue.js', 'js/db.js', 'js/sync.js', 'js/camera.js', 'js/scanner.js', 'js/ui.js', 'js/print-layout.js',
+  'js/app.js', 'js/ctx.js', 'js/plate-reader.js', 'js/analysis.js', 'js/pay-ui.js', 'js/api.js', 'js/photo-queue.js', 'js/db.js', 'js/sync.js', 'js/camera.js', 'js/scanner.js', 'js/ui.js', 'js/print-layout.js',
   'js/screens/login.js', 'js/screens/checkin.js', 'js/screens/checkout.js', 'js/screens/lot.js',
   'js/screens/session-detail.js', 'js/screens/print.js', 'js/screens/shift.js', 'js/screens/admin.js', 'js/screens/alerts.js',
-  'shared/ticket.js', 'shared/pricing.js', 'shared/sessions.js', 'shared/merge.js', 'shared/vision.js', 'shared/report.js', 'shared/compare.js', 'shared/server-ops.js', 'shared/plate-core.js',
+  'shared/ticket.js', 'shared/pricing.js', 'shared/payment.js', 'shared/sessions.js', 'shared/merge.js', 'shared/vision.js', 'shared/report.js', 'shared/compare.js', 'shared/server-ops.js', 'shared/plate-core.js',
 ];
 
 // Model đọc biển số + thư viện chạy model (~25 MB): KHÔNG tải sẵn lúc cài app, chỉ tải khi cần lần đầu rồi giữ trong

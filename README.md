@@ -23,6 +23,10 @@ và dọn Drive hằng đêm (ảnh > 30 ngày; dữ liệu > 90 ngày dời san
 ✅ **US4 — mất phiếu**: chọn xe trong lưới ảnh → trả xe mất phiếu (ghi chú bắt buộc, thu phí mất phiếu, chụp ảnh ra);
 gán lại số phiếu khi lúc gửi đưa nhầm phiếu.
 
+✅ **Thanh toán linh động**: mặc định **thu lúc gửi xe**; khách muốn thì **trả lúc lấy xe**; mỗi lần thu chọn
+**tiền mặt** hoặc **chuyển khoản**. Chốt ca tách **tiền mặt cần nộp** và **chuyển khoản** (đối chiếu tài khoản).
+Mất phiếu: phí 10.000đ là tổng, đã trả lúc gửi thì chỉ thu phần còn thiếu. Hoàn tác / hủy lượt đã thu → không tính tiền.
+
 ✅ **US5 — chốt ca & quản lý**: nhân viên **chốt ca** thấy ngay tiền cần nộp (chạy cả khi mất mạng, máy chủ xác nhận
 sau); chủ sân vào **Quản lý**: báo cáo theo ngày/ca (hôm nay, 7 ngày, tháng này), **đổi giá**, **thêm/khóa nhân viên,
 đổi PIN**, xem lượt có xung đột và **hủy lượt** (bắt buộc lý do, không xóa dữ liệu).
@@ -113,7 +117,7 @@ Bảo mật (nên đọc): [`docs/bao-mat.md`](docs/bao-mat.md).
 
 ```bash
 npm install
-npm test            # 148 unit test: logic phiếu, giá, đồng bộ, đọc biển số (chạy model thật nếu có ảnh mẫu), Apps Script giả lập
+npm test            # 155 unit test: logic phiếu, giá, đồng bộ, đọc biển số (chạy model thật nếu có ảnh mẫu), Apps Script giả lập
 npm run test:e2e    # 36 test đầu-cuối trên Chromium với camera giả (2 máy, mất mạng, sao lưu ảnh)
 npm run serve       # chạy thử tại http://localhost:5173
 npm run build:gas   # sinh gas/Shared.js và file gộp gas-bundle/GoMay-GiuXe.gs (chạy sau khi sửa web/shared/ hoặc gas/)

@@ -513,6 +513,22 @@ describe('Apps Script (giả lập)', () => {
     expect(call('reportAnalysis', { photoId: 'DEVout' }, manager, 'dA').error.code).toBe('BAD_REQUEST');
   });
 
+  it('Thanh toán: thu lúc gửi (chuyển khoản) / trả lúc ra (tiền mặt) lưu đủ vào bảng tính, đọc lại đúng kiểu số', () => {
+    const t = new Date().toISOString();
+    call('push', { ops: [
+      { opId: 'pay-c1', type: 'createSession', createdAt: t, payload: { id: 'PAY1', ticketDate: today(), ticketNo: 140, noTicket: false, vehicleType: 'motorbike', inAt: t, inPhotoId: 'PAY1in', payIn: 'transfer' } },
+      { opId: 'pay-c2', type: 'createSession', createdAt: t, payload: { id: 'PAY2', ticketDate: today(), ticketNo: 141, noTicket: false, vehicleType: 'motorbike', inAt: t, inPhotoId: 'PAY2in', payIn: 'later' } },
+    ] }, manager, 'dA');
+    call('push', { ops: [
+      { opId: 'pay-o1', type: 'checkout', createdAt: t, payload: { sessionId: 'PAY1', outAt: t, outPhotoId: 'PAY1out', payMethod: 'cash' } },
+      { opId: 'pay-o2', type: 'checkout', createdAt: t, payload: { sessionId: 'PAY2', outAt: t, outPhotoId: 'PAY2out', payMethod: 'cash' } },
+    ] }, manager, 'dB');
+    const price = gas.findBy('Sessions', 'id', 'PAY1').priceAtIn; // giá xe máy đã đổi ở test trước
+    expect(price).toBeGreaterThan(0);
+    expect(gas.findBy('Sessions', 'id', 'PAY1')).toMatchObject({ inPaid: price, inPayMethod: 'transfer', outPaid: 0, fee: price });
+    expect(gas.findBy('Sessions', 'id', 'PAY2')).toMatchObject({ inPaid: 0, outPaid: price, outPayMethod: 'cash', fee: price });
+  });
+
   it('Google khai tử model gemini-2.5-flash (404) → tự tìm model flash mới nhất, nhớ lại; ảnh đã "dừng thử" được đọc lại', () => {
     const props = gas.PropertiesService.getScriptProperties();
     props.setProperty('VISION_API_KEY', 'khoa-dung');

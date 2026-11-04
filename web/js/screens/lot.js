@@ -6,6 +6,8 @@ import { start as startCamera, captureJpeg, captureViaInput } from '../camera.js
 import { h, toast, uuid, timeVN, dateVN, asyncPhoto, fill } from '../ui.js';
 import { hashParams } from '../ctx.js';
 import { ensureLocalAnalysis } from '../analysis.js';
+import { checkoutPayment, dueAtOut, inAmount } from '../../shared/payment.js';
+import { methodPicker } from '../pay-ui.js';
 import { formatNo, parseTypedNumber } from '../../shared/ticket.js';
 import { normalizePlate } from '../../shared/sessions.js';
 import { lostFee, formatMoney, VEHICLE_TYPES } from '../../shared/pricing.js';
@@ -65,15 +67,19 @@ export async function render(root, ctx) {
 
   async function lostFlow(s) {
     const prices = await db.getMeta('prices', []);
-    const fee = lostFee(prices, ctx.nowIso());
+    const fee = lostFee(prices, ctx.nowIso()); // tổng phí mất phiếu
+    const due = dueAtOut(fee, s); // đã trả lúc gửi → chỉ thu phần còn thiếu
+    const picker = methodPicker('pay-lost');
+    const paidNote = inAmount(s) ? ` (đã trả ${formatMoney(inAmount(s))} lúc gửi)` : '';
     const video = h('video', { autoplay: true, muted: true, playsinline: true });
     const camBox = h('div', { class: 'camera' }, video, h('div', { class: 'frame' }, h('span', {}, 'Chụp xe + người nhận xe')));
     const note = h('textarea', { id: 'lost-note', rows: '3', placeholder: 'Ví dụ: đã xem cà vẹt, tên Nguyễn Văn A, SĐT …' });
     const err = h('div', { class: 'error-text', id: 'lost-error' });
-    const go = h('button', { type: 'button', class: 'primary', id: 'lost-go' }, `Chụp & trả xe · thu ${formatMoney(fee)}`);
+    const go = h('button', { type: 'button', class: 'primary', id: 'lost-go' }, `Chụp & trả xe · thu ${formatMoney(due)}`);
     fill(panel, h('div', { class: 'card' },
-      h('div', { class: 'banner danger' }, `Trả xe MẤT PHIẾU — phiếu ${formatNo(s.ticketNo)} · thu ${formatMoney(fee)}`),
+      h('div', { class: 'banner danger' }, `Trả xe MẤT PHIẾU — phiếu ${formatNo(s.ticketNo)} · thu ${formatMoney(due)}${paidNote}`),
       h('p', {}, 'Kiểm tra giấy tờ xe (cà vẹt, CCCD) trước khi trả.'),
+      due ? h('label', {}, 'Khách trả bằng') : null, due ? picker.el : null,
       h('label', { for: 'lost-note' }, 'Ghi chú (bắt buộc)'), note, err, camBox,
       h('div', { class: 'row', style: 'margin-top:10px' }, h('button', { type: 'button', onclick: closePanel }, 'Hủy'), go)));
     const camReady = startCamera(video).then((c) => { cam = c; }).catch(() => { cam = null; });
@@ -86,16 +92,16 @@ export async function render(root, ctx) {
         if (!blob) return;
         const outAt = ctx.nowIso();
         const photoId = uuid();
-        const updated = { ...s, status: 'lost', outAt, outStaffId: ctx.staff.id, outPhotoId: photoId, fee, note: note.value.trim() };
+        const updated = { ...s, status: 'lost', outAt, outStaffId: ctx.staff.id, outPhotoId: photoId, ...checkoutPayment(s, fee, picker.value), note: note.value.trim() };
         await db.commit({
           sessions: [updated],
           photos: [{ id: photoId, sessionId: s.id, kind: 'out', takenAt: outAt, deviceId: ctx.deviceId, blob, uploadState: 'pending', attempts: 0 }],
-          ops: [{ opId: uuid(), type: 'lostCheckout', createdAt: outAt, payload: { sessionId: s.id, outAt, outPhotoId: photoId, note: updated.note } }],
+          ops: [{ opId: uuid(), type: 'lostCheckout', createdAt: outAt, payload: { sessionId: s.id, outAt, outPhotoId: photoId, note: updated.note, payMethod: picker.value } }],
         });
         ensureLocalAnalysis(photoId);
         sync.kick();
         ctx.changed();
-        toast(`✔ Đã trả xe mất phiếu ${formatNo(s.ticketNo)} · thu ${formatMoney(fee)}`, { ms: 4000 });
+        toast(`✔ Đã trả xe mất phiếu ${formatNo(s.ticketNo)} · thu ${formatMoney(updated.outPaid)}`, { ms: 4000 });
         closePanel();
         paint();
       } finally {

@@ -246,6 +246,45 @@ function formatMoney(v) {
   return `${String(Math.round(Number(v) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, '.')}đ`;
 }
 
+// ---- payment.js ----
+// Thanh toán: thu lúc GỬI xe (mặc định) hoặc lúc TRẢ xe; tiền mặt hoặc chuyển khoản.
+// Lượt gửi lưu: inPaid / inPayMethod (thu lúc vào), outPaid / outPayMethod (thu lúc ra), fee = tổng đã thu.
+// Lượt từ bản app cũ (chưa có các trường này) = thu hết lúc ra bằng tiền mặt.
+
+const PAY_METHODS = { cash: 'Tiền mặt', transfer: 'Chuyển khoản' };
+/** Lựa chọn lúc gửi xe: thu ngay (tiền mặt / chuyển khoản) hoặc để khách trả lúc ra. */
+const PAY_IN_OPTIONS = { cash: 'Tiền mặt', transfer: 'Chuyển khoản', later: 'Trả lúc ra' };
+
+const payMethod = (m) => (m === 'transfer' ? 'transfer' : 'cash');
+
+/** Đã thu lúc vào. */
+const inAmount = (s) => Number(s && s.inPaid) || 0;
+
+/** Đã thu lúc ra (lượt cũ chưa có outPaid: toàn bộ phí). */
+function outAmount(s) {
+  if (!s) return 0;
+  if (s.outPaid != null && s.outPaid !== '') return Number(s.outPaid) || 0;
+  return Math.max(0, (Number(s.fee) || 0) - inAmount(s));
+}
+
+const outMethod = (s) => payMethod(s && s.outPayMethod);
+const inMethod = (s) => payMethod(s && s.inPayMethod);
+
+/** Số còn phải thu khi trả xe = tổng phí − đã thu lúc vào. */
+const dueAtOut = (total, s) => Math.max(0, (Number(total) || 0) - inAmount(s));
+
+/** Trường thanh toán lúc gửi xe. payIn: 'cash' | 'transfer' | 'later' (không có = bản app cũ = trả lúc ra). */
+function checkinPayment(payIn, price) {
+  if (payIn === 'cash' || payIn === 'transfer') return { inPaid: Number(price) || 0, inPayMethod: payIn };
+  return { inPaid: 0 };
+}
+
+/** Trường thanh toán lúc trả xe: tổng phí `total`, cách trả `method`. */
+function checkoutPayment(session, total, method) {
+  const outPaid = dueAtOut(total, session);
+  return { outPaid, outPayMethod: outPaid ? payMethod(method) : '', fee: inAmount(session) + outPaid };
+}
+
 // ---- sessions.js ----
 // Vòng đời một lượt gửi xe. Không có thao tác nào xóa lượt (constitution, Nguyên tắc IV).
 
@@ -298,12 +337,13 @@ function applyOp(session, op, ctx = {}) {
       if (!p.outAt || !p.outPhotoId) return { error: 'BAD_REQUEST' };
       const lost = op.type === 'lostCheckout';
       if (lost && !hasNote(p)) return { error: 'NOTE_REQUIRED' };
-      const fee = lost ? Number(p.fee != null ? p.fee : ctx.lostFee) : Number(session.priceAtIn);
+      // Phí mất phiếu là TỔNG tiền (không cộng giá thường); đã trả lúc vào thì chỉ thu phần còn thiếu.
+      const total = lost ? Number(p.fee != null ? p.fee : ctx.lostFee) : Number(session.priceAtIn);
       return {
         session: {
           ...session,
           status: lost ? STATUS.LOST : STATUS.RETURNED,
-          outAt: p.outAt, outStaffId: op.staffId, outPhotoId: p.outPhotoId, fee,
+          outAt: p.outAt, outStaffId: op.staffId, outPhotoId: p.outPhotoId, ...checkoutPayment(session, total, p.payMethod),
           ...(lost ? { note: p.note.trim() } : {}),
         },
       };
@@ -333,7 +373,7 @@ function createProvisional(p, staffId) {
     session: {
       id: p.id, ticketDate: p.ticketDate, ticketNo: Number(p.ticketNo), noTicket: false,
       status: STATUS.PROVISIONAL, outAt: p.outAt, outStaffId: staffId, outPhotoId: p.outPhotoId,
-      note: p.note.trim(), fee: null, plateStatus: PLATE_STATUS.PENDING,
+      note: p.note.trim(), fee: null, outPayMethod: payMethod(p.payMethod), plateStatus: PLATE_STATUS.PENDING,
     },
   };
 }
@@ -502,7 +542,8 @@ function mergeServerSession(local, server, pendingSessionIds) {
 
 // ---- report.js ----
 // Báo cáo chốt ca / doanh thu. Logic thuần, dùng chung app (chốt ca khi offline), Apps Script và test.
-// Quy ước: tiền tính cho NGƯỜI TRẢ XE vào lúc trả (outAt); lượt gửi tính cho người nhận xe (inAt).
+// Quy ước: tiền thu lúc GỬI tính cho người nhận xe vào lúc gửi (inAt); tiền thu lúc TRẢ tính cho người trả xe (outAt).
+// Lượt bị hủy (hoàn tác, quản lý hủy) không tính tiền — đã thu trước thì trả lại khách.
 
 const VN_MS = 7 * 3600 * 1000;
 const PAID = ['returned', 'lost'];
@@ -528,12 +569,20 @@ const within = (iso, from, to) => !!iso && String(iso) >= from && String(iso) <=
  */
 function summarize({ sessions = [], alerts = [], batches = [], from, to, staffId }) {
   const paid = sessions.filter((s) => PAID.includes(s.status) && within(s.outAt, from, to) && (!staffId || s.outStaffId === staffId));
+  const prepaid = sessions.filter((s) => s.status !== 'cancelled' && inAmount(s) > 0 && within(s.inAt, from, to) && (!staffId || s.inStaffId === staffId));
+  const pays = [
+    ...prepaid.map((s) => ({ s, amount: inAmount(s), method: inMethod(s) })),
+    ...paid.map((s) => ({ s, amount: outAmount(s), method: outMethod(s) })).filter((x) => x.amount > 0),
+  ];
   const byType = {};
-  for (const s of paid) {
+  const counted = {};
+  const money = { cash: 0, transfer: 0 };
+  for (const { s, amount, method } of pays) {
     const t = s.vehicleType || 'motorbike';
     byType[t] = byType[t] || { count: 0, revenue: 0 };
-    byType[t].count++;
-    byType[t].revenue += Number(s.fee) || 0;
+    if (!counted[s.id]) { counted[s.id] = true; byType[t].count++; }
+    byType[t].revenue += amount;
+    money[method] += amount;
   }
   const checkins = sessions.filter((s) => s.status !== 'cancelled' && within(s.inAt, from, to) && (!staffId || s.inStaffId === staffId));
   const inLot = sessions.filter((s) => s.status === 'in_lot');
@@ -547,7 +596,10 @@ function summarize({ sessions = [], alerts = [], batches = [], from, to, staffId
   return {
     from, to,
     count: paid.length,
-    revenue: paid.reduce((sum, s) => sum + (Number(s.fee) || 0), 0),
+    revenue: money.cash + money.transfer,
+    cash: money.cash, // tiền mặt nhân viên phải nộp
+    transfer: money.transfer, // khách chuyển khoản (đã vào tài khoản, không nộp)
+    prepaid: prepaid.length, // lượt thu tiền lúc gửi
     byType,
     lost: paid.filter((s) => s.status === 'lost').length,
     checkins: checkins.length,
@@ -633,13 +685,14 @@ function opCreateSession(state, op) {
     inDeviceId: op.deviceId, inPhotoId: p.inPhotoId, priceAtIn: priceFor(state.prices, vehicleType, p.inAt),
     status: STATUS.IN_LOT, note: p.note || '',
   };
+  Object.assign(session, checkinPayment(p.payIn, session.priceAtIn));
   if (conflict) session.conflict = conflict;
 
   const changed = [];
   let action = 'create';
   if (provisional && !conflict) {
     session = { ...session, status: STATUS.RETURNED, outAt: provisional.outAt, outStaffId: provisional.outStaffId,
-      outPhotoId: provisional.outPhotoId, fee: session.priceAtIn, note: provisional.note };
+      outPhotoId: provisional.outPhotoId, ...checkoutPayment(session, session.priceAtIn, provisional.outPayMethod), note: provisional.note };
     const merged = { ...provisional, status: STATUS.CANCELLED, mergedInto: session.id };
     state.sessions.set(merged.id, merged);
     changed.push(merged);
@@ -673,7 +726,7 @@ function opProvisional(state, op) {
   const open = findOpen(state, p.ticketDate, p.ticketNo, STATUS.IN_LOT);
   if (open) {
     // Máy chủ đã có lượt gửi → trả luôn lượt đó.
-    return opTransition(state, { ...op, type: 'checkout', payload: { sessionId: open.id, outAt: p.outAt, outPhotoId: p.outPhotoId } }, 'checkout');
+    return opTransition(state, { ...op, type: 'checkout', payload: { sessionId: open.id, outAt: p.outAt, outPhotoId: p.outPhotoId, payMethod: p.payMethod } }, 'checkout');
   }
   const r = createProvisional(p, op.staffId);
   if (r.error) return { status: 'rejected', error: r.error };

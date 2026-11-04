@@ -1,4 +1,5 @@
 // Vòng đời một lượt gửi xe. Không có thao tác nào xóa lượt (constitution, Nguyên tắc IV).
+import { checkoutPayment, payMethod } from './payment.js';
 
 export const STATUS = {
   IN_LOT: 'in_lot', RETURNED: 'returned', LOST: 'lost', PROVISIONAL: 'provisional', CANCELLED: 'cancelled',
@@ -49,12 +50,13 @@ export function applyOp(session, op, ctx = {}) {
       if (!p.outAt || !p.outPhotoId) return { error: 'BAD_REQUEST' };
       const lost = op.type === 'lostCheckout';
       if (lost && !hasNote(p)) return { error: 'NOTE_REQUIRED' };
-      const fee = lost ? Number(p.fee != null ? p.fee : ctx.lostFee) : Number(session.priceAtIn);
+      // Phí mất phiếu là TỔNG tiền (không cộng giá thường); đã trả lúc vào thì chỉ thu phần còn thiếu.
+      const total = lost ? Number(p.fee != null ? p.fee : ctx.lostFee) : Number(session.priceAtIn);
       return {
         session: {
           ...session,
           status: lost ? STATUS.LOST : STATUS.RETURNED,
-          outAt: p.outAt, outStaffId: op.staffId, outPhotoId: p.outPhotoId, fee,
+          outAt: p.outAt, outStaffId: op.staffId, outPhotoId: p.outPhotoId, ...checkoutPayment(session, total, p.payMethod),
           ...(lost ? { note: p.note.trim() } : {}),
         },
       };
@@ -84,7 +86,7 @@ export function createProvisional(p, staffId) {
     session: {
       id: p.id, ticketDate: p.ticketDate, ticketNo: Number(p.ticketNo), noTicket: false,
       status: STATUS.PROVISIONAL, outAt: p.outAt, outStaffId: staffId, outPhotoId: p.outPhotoId,
-      note: p.note.trim(), fee: null, plateStatus: PLATE_STATUS.PENDING,
+      note: p.note.trim(), fee: null, outPayMethod: payMethod(p.payMethod), plateStatus: PLATE_STATUS.PENDING,
     },
   };
 }

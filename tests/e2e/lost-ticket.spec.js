@@ -25,17 +25,19 @@ test('US4: lưới ảnh xe trong bãi, trả xe mất phiếu bắt buộc ghi 
 
   await page.locator('#lot-grid .tile', { hasText: 'Phiếu 002' }).click();
   await page.click('#lost-btn');
-  await expect(page.locator('#lost-go')).toContainText('10.000đ');
+  // phí mất phiếu 10.000đ là tổng; khách đã trả 5.000đ lúc gửi → thu thêm 5.000đ
+  await expect(page.locator('#lost-go')).toContainText('thu 5.000đ');
+  await expect(page.locator('#lot-panel')).toContainText('đã trả 5.000đ lúc gửi');
   await page.click('#lost-go');
   await expect(page.locator('#lost-error')).toHaveText('Bắt buộc ghi chú (đã kiểm tra giấy tờ gì)');
   await page.fill('#lost-note', 'Đã xem cà vẹt, tên Nguyễn Văn A');
   await page.click('#lost-go');
-  await expect(page.locator('#toast')).toContainText('Đã trả xe mất phiếu 002 · thu 10.000đ');
+  await expect(page.locator('#toast')).toContainText('Đã trả xe mất phiếu 002 · thu 5.000đ');
   await expect(page.locator('#lot-grid .tile')).toHaveCount(2);
 
   await expect.poll(() => mock.sessions().find((s) => s.ticketNo === 2)?.status, { timeout: 5000 }).toBe('lost');
   const s2 = mock.sessions().find((s) => s.ticketNo === 2);
-  expect(s2).toMatchObject({ fee: 10000, note: 'Đã xem cà vẹt, tên Nguyễn Văn A' });
+  expect(s2).toMatchObject({ fee: 10000, inPaid: 5000, outPaid: 5000, note: 'Đã xem cà vẹt, tên Nguyễn Văn A' });
   expect(s2.outPhotoId).toBeTruthy();
 
   // Sau đó có người cầm phiếu 002 tới → báo phiếu đã báo mất

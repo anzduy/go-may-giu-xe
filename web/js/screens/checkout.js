@@ -7,6 +7,8 @@ import { h, toast, uuid, timeVN, dateVN, asyncPhoto, fill } from '../ui.js';
 import { formatNo, parseTypedNumber, parseQr, validateForCheckout, ticketMessage, maxTicketNo } from '../../shared/ticket.js';
 import { VEHICLE_TYPES, formatMoney } from '../../shared/pricing.js';
 import { ensureLocalAnalysis } from '../analysis.js';
+import { checkoutPayment, dueAtOut, PAY_METHODS, inMethod } from '../../shared/payment.js';
+import { methodPicker } from '../pay-ui.js';
 
 export async function render(root, ctx) {
   const today = ctx.today();
@@ -132,6 +134,7 @@ export async function render(root, ctx) {
   // ---------- bước 2: xác nhận và trả xe ----------
   async function confirm(session) {
     scanning(false);
+    const picker = methodPicker();
     const staffNames = await db.getMeta('staffNames', {});
     const otherDay = session.ticketDate !== today ? ` · phiếu ngày ${dateVN(session.ticketDate)}` : '';
     fill(view, 
@@ -142,7 +145,7 @@ export async function render(root, ctx) {
           session.inSummary ? h('div', { class: 'warn-text', id: 'in-summary' }, session.inSummary) : null,
           h('div', { class: 'muted' }, `${VEHICLE_TYPES[session.vehicleType] || 'Xe'} · vào ${timeVN(session.inAt)}${otherDay}`
             + `${staffNames[session.inStaffId] ? ` · ${staffNames[session.inStaffId]} nhận` : ''}`),
-          h('div', { class: 'fee' }, `Thu ${formatMoney(session.priceAtIn)}`),
+          ...feeBlock(session, picker),
           session.conflict ? h('div', { class: 'error-text' }, `Lưu ý: lượt này có xung đột (${session.conflict}) — quản lý sẽ kiểm tra`) : null),
         h('div', {}, h('div', { class: 'ticket-label' }, 'Camera (tự chụp ảnh lúc ra khi bấm TRẢ XE)'), camBox)),
     );
@@ -154,12 +157,21 @@ export async function render(root, ctx) {
       toast('Không trả xe. Kiểm tra giấy tờ xe và tìm đúng xe trong bãi.', { ms: 5000, error: true });
       ctx.navigate(`#lot?mode=lost&session=${encodeURIComponent(session.id)}`);
     });
-    doneBtn.addEventListener('click', () => checkout(session));
+    doneBtn.addEventListener('click', () => checkout(session, picker.value));
     fill(bottom, back, mismatch, doneBtn);
     bottom.classList.remove('hidden');
   }
 
-  async function checkout(session) {
+  /** Đã thu lúc gửi → báo "không thu nữa"; chưa thu → số tiền + chọn tiền mặt / chuyển khoản. */
+  function feeBlock(session, picker) {
+    const due = dueAtOut(session.priceAtIn, session);
+    if (!due) {
+      return [h('div', { class: 'fee prepaid', id: 'fee-due' }, `✔ Đã trả lúc gửi (${PAY_METHODS[inMethod(session)].toLowerCase()}) — không thu nữa`)];
+    }
+    return [h('div', { class: 'fee', id: 'fee-due' }, `Thu ${formatMoney(due)}`), picker.el];
+  }
+
+  async function checkout(session, method) {
     if (busy) return;
     busy = true;
     try {
@@ -167,16 +179,16 @@ export async function render(root, ctx) {
       if (!blob) return;
       const outAt = ctx.nowIso();
       const photoId = uuid();
-      const updated = { ...session, status: 'returned', outAt, outStaffId: ctx.staff.id, outPhotoId: photoId, fee: session.priceAtIn };
+      const updated = { ...session, status: 'returned', outAt, outStaffId: ctx.staff.id, outPhotoId: photoId, ...checkoutPayment(session, session.priceAtIn, method) };
       await db.commit({
         sessions: [updated],
         photos: [{ id: photoId, sessionId: session.id, kind: 'out', takenAt: outAt, deviceId: ctx.deviceId, blob, uploadState: 'pending', attempts: 0 }],
-        ops: [{ opId: uuid(), type: 'checkout', createdAt: outAt, payload: { sessionId: session.id, outAt, outPhotoId: photoId } }],
+        ops: [{ opId: uuid(), type: 'checkout', createdAt: outAt, payload: { sessionId: session.id, outAt, outPhotoId: photoId, payMethod: method } }],
       });
       ensureLocalAnalysis(photoId);
       sync.kick();
       ctx.changed();
-      toast(`✔ Đã trả xe phiếu ${formatNo(session.ticketNo)} · Thu ${formatMoney(updated.fee)}`, { ms: 4000 });
+      toast(`✔ Đã trả xe phiếu ${formatNo(session.ticketNo)} · ${updated.outPaid ? `Thu ${formatMoney(updated.outPaid)}${method === 'transfer' ? ' (chuyển khoản)' : ''}` : 'đã trả lúc gửi'}`, { ms: 4000 });
       lookup();
     } finally {
       busy = false;
@@ -188,6 +200,7 @@ export async function render(root, ctx) {
     scanning(false);
     const note = h('textarea', { id: 'provisional-note', rows: '3', placeholder: 'Ví dụ: máy cổng vào mất mạng, đã xem giấy tờ xe' });
     const go = h('button', { type: 'button', class: 'primary', id: 'provisional-go' }, 'Chụp & trả xe tạm');
+    const picker = methodPicker('pay-provisional');
     const err = h('div', { class: 'error-text' });
     go.addEventListener('click', async () => {
       if (!note.value.trim()) { err.textContent = 'Bắt buộc ghi chú lý do'; return; }
@@ -196,11 +209,11 @@ export async function render(root, ctx) {
       const outAt = ctx.nowIso();
       const id = uuid();
       const photoId = uuid();
-      const s = { id, ticketDate, ticketNo: no, noTicket: false, status: 'provisional', outAt, outStaffId: ctx.staff.id, outPhotoId: photoId, note: note.value.trim(), fee: null };
+      const s = { id, ticketDate, ticketNo: no, noTicket: false, status: 'provisional', outAt, outStaffId: ctx.staff.id, outPhotoId: photoId, note: note.value.trim(), fee: null, outPayMethod: picker.value };
       await db.commit({
         sessions: [s],
         photos: [{ id: photoId, sessionId: id, kind: 'out', takenAt: outAt, deviceId: ctx.deviceId, blob, uploadState: 'pending', attempts: 0 }],
-        ops: [{ opId: uuid(), type: 'provisionalCheckout', createdAt: outAt, payload: { id, ticketDate, ticketNo: no, outAt, outPhotoId: photoId, note: s.note } }],
+        ops: [{ opId: uuid(), type: 'provisionalCheckout', createdAt: outAt, payload: { id, ticketDate, ticketNo: no, outAt, outPhotoId: photoId, note: s.note, payMethod: picker.value } }],
       });
       ensureLocalAnalysis(photoId);
       sync.kick();
@@ -210,8 +223,8 @@ export async function render(root, ctx) {
     });
     fill(view, 
       h('div', { class: 'banner warn' }, `Trả xe tạm — phiếu ${formatNo(no)} (ngày ${dateVN(ticketDate)})`),
-      h('p', {}, 'Kiểm tra giấy tờ xe trước. App sẽ chụp ảnh xe lúc ra và tự ghép với lượt gửi khi máy cổng vào đồng bộ.'),
-      camBox, h('label', { for: 'provisional-note' }, 'Ghi chú (bắt buộc)'), note, err,
+      h('p', {}, 'Kiểm tra giấy tờ xe trước. App sẽ chụp ảnh xe lúc ra và tự ghép với lượt gửi khi máy cổng vào đồng bộ. Khách nói đã trả lúc gửi thì không thu (app tự đối chiếu khi ghép).'),
+      camBox, h('label', {}, 'Nếu thu tiền: khách trả bằng'), picker.el, h('label', { for: 'provisional-note' }, 'Ghi chú (bắt buộc)'), note, err,
       h('div', { class: 'row', style: 'margin-top:10px' }, h('button', { type: 'button', onclick: lookup }, '← Quay lại'), go),
     );
   }

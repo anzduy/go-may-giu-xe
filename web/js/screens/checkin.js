@@ -11,7 +11,8 @@ import {
 } from '../../shared/ticket.js';
 import { findPlateDuplicate } from '../../shared/sessions.js';
 import { ensureLocalAnalysis } from '../analysis.js';
-import { VEHICLE_TYPES, priceFor } from '../../shared/pricing.js';
+import { VEHICLE_TYPES, priceFor, formatMoney } from '../../shared/pricing.js';
+import { PAY_IN_OPTIONS, checkinPayment } from '../../shared/payment.js';
 
 const UNDO_MS = 10000;
 
@@ -25,6 +26,7 @@ export async function render(root, ctx) {
   let edited = false;
   let noTicket = false;
   let vehicleType = 'motorbike';
+  let payIn = 'cash'; // mặc định thu tiền mặt lúc gửi; mỗi xe xong lại về tiền mặt
   let cam = null;
   let stopScan = null;
   let busy = false;
@@ -49,12 +51,16 @@ export async function render(root, ctx) {
     h('div', { class: 'cam-tools' }, scanBtn, torchBtn));
   const typeBtns = Object.entries(VEHICLE_TYPES).map(([k, name]) =>
     h('button', { type: 'button', 'data-type': k, onclick: () => { vehicleType = k; paint(); } }, name));
+  const payBtns = Object.entries(PAY_IN_OPTIONS).map(([k, name]) =>
+    h('button', { type: 'button', 'data-pay': k, onclick: () => { payIn = k; paint(); } }, name));
+  const payLabel = h('div', { class: 'ticket-label', id: 'pay-label' });
   const noTicketBtn = h('button', { type: 'button', id: 'no-ticket-btn', class: 'ghost small', style: 'width:100%' }, 'Gửi xe không phiếu (hết phiếu)');
   const captureBtn = h('button', { type: 'button', id: 'capture', class: 'primary' }, '📷 CHỤP — GỬI XE');
 
   fill(root, 
     banner, plateDup, label, numberInput, error, warn,
     h('div', { class: 'segmented' }, typeBtns),
+    payLabel, h('div', { class: 'segmented pay', id: 'pay-in' }, payBtns),
     camBox, camMsg,
     h('div', { style: 'margin-top:10px' }, noTicketBtn),
     h('div', { class: 'bottom-bar' }, captureBtn),
@@ -83,6 +89,9 @@ export async function render(root, ctx) {
     label.textContent = noTicket ? 'GỬI XE KHÔNG PHIẾU — ghi số này lên giấy cho khách' : 'Phiếu tiếp theo (chạm để sửa)';
     noTicketBtn.textContent = noTicket ? 'Hủy — quay lại dùng phiếu in sẵn' : 'Gửi xe không phiếu (hết phiếu)';
     typeBtns.forEach((b) => b.classList.toggle('on', b.dataset.type === vehicleType));
+    payBtns.forEach((b) => b.classList.toggle('on', b.dataset.pay === payIn));
+    const price = formatMoney(priceFor(prices, vehicleType, ctx.nowIso()));
+    payLabel.textContent = payIn === 'later' ? `Khách trả ${price} lúc lấy xe` : `Thu ngay ${price} — ${PAY_IN_OPTIONS[payIn].toLowerCase()}`;
     scanBtn.classList.toggle('on', !!stopScan);
     const v = validation();
     error.textContent = v.ok ? '' : ticketMessage(v.error, current);
@@ -166,10 +175,11 @@ export async function render(root, ctx) {
         inAt, inStaffId: ctx.staff.id, inDeviceId: ctx.deviceId, inPhotoId: photoId,
         priceAtIn: priceFor(prices, vehicleType, inAt), status: 'in_lot', note: '',
       };
+      Object.assign(session, checkinPayment(payIn, session.priceAtIn));
       const photo = { id: photoId, sessionId: id, kind: 'in', takenAt: inAt, deviceId: ctx.deviceId, blob, uploadState: 'pending', attempts: 0 };
       const op = {
         opId: uuid(), type: 'createSession', createdAt: inAt,
-        payload: { id, ticketDate: today, ticketNo: current, noTicket, vehicleType, inAt, inPhotoId: photoId },
+        payload: { id, ticketDate: today, ticketNo: current, noTicket, vehicleType, inAt, inPhotoId: photoId, payIn },
       };
       await db.saveCheckin(session, photo, op);
       ensureLocalAnalysis(photoId); // đọc biển số + màu trên máy, chạy ngầm (không chờ)
@@ -182,12 +192,14 @@ export async function render(root, ctx) {
 
       const no = current;
       const wasNoTicket = noTicket;
+      const payNote = session.inPaid ? ` · đã thu ${formatMoney(session.inPaid)}${session.inPayMethod === 'transfer' ? ' (chuyển khoản)' : ''}` : ' · trả lúc ra';
       noTicket = false;
+      payIn = 'cash';
       edited = false;
       current = suggestNext(lastNo, blockedNumbers(sessions, today));
       paint();
       const shownAt = Date.now();
-      toast(`✔ Đã gửi xe — phiếu ${formatNo(no)}${wasNoTicket ? ' (không phiếu)' : ''}`, {
+      toast(`✔ Đã gửi xe — phiếu ${formatNo(no)}${wasNoTicket ? ' (không phiếu)' : ''}${payNote}`, {
         ms: UNDO_MS,
         actions: [
           { label: '↶ Hoàn tác', onClick: () => undo(session, prevLast, shownAt) },
