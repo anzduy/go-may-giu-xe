@@ -422,4 +422,66 @@ describe('Apps Script (giả lập)', () => {
     const r = JSON.parse(ctx2.doPost({ postData: { contents: JSON.stringify({ action: 'login', data: { staffName: 'Quản lý', pin: pin2 } }) } }).content);
     expect(r.ok).toBe(true);
   });
+
+  it('Ảnh tải lên LÚC CHƯA CÓ KHÓA AI → thêm khóa sau thì trigger 5 phút vẫn đọc lại; lỗi AI có lý do gửi về máy', () => {
+    const props = gas.PropertiesService.getScriptProperties();
+    props.setProperty('VISION_API_KEY', '');
+    const inAt = new Date().toISOString();
+    call('push', { ops: [{ opId: 'nk-in', type: 'createSession', createdAt: inAt,
+      payload: { id: 'SNK', ticketDate: today(), ticketNo: 88, noTicket: false, vehicleType: 'motorbike', inAt, inPhotoId: 'PNK' } }] }, manager, 'dA');
+    call('uploadPhoto', { photoId: 'PNK', sessionId: 'SNK', kind: 'in', takenAt: inAt, jpegBase64: 'eA==' }, manager, 'dA');
+    expect(gas.findBy('Photos', 'id', 'PNK').analysisStatus).toBe('disabled');
+    const p0 = call('pull', { sinceRev: 0 }, manager, 'dA').data;
+    expect(p0.analyses.find((a) => a.id === 'PNK')).toMatchObject({ analysisStatus: 'disabled' });
+    expect(p0.config.visionEnabled).toBe(false);
+
+    // Chủ sân thêm khóa AI sau — nhưng khóa sai → lỗi HTTP_403 có lý do
+    props.setProperty('VISION_API_KEY', 'khoa-sai');
+    const row = fake.sheets.get('Photos').data.find((r) => r[0] === 'PNK');
+    row[gas.HEADERS.Photos.indexOf('uploadedAt')] = new Date(Date.now() - 180000).toISOString();
+    fake.setFetch(() => ({ code: 403, body: '{}' }));
+    expect(gas.retryFailedAnalyses()).toBeGreaterThanOrEqual(1);
+    const p1 = call('pull', { sinceRev: p0.rev }, manager, 'dA').data;
+    expect(p1.analyses.find((a) => a.id === 'PNK')).toMatchObject({ analysisStatus: 'failed', analysisError: 'HTTP_403' });
+    expect(p1.config.visionEnabled).toBe(true);
+
+    // Sửa khóa đúng → lần thử sau đọc được biển số
+    fake.setFetch(() => ({ code: 200, body: JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({
+      plate: '77-C1 399.97', color: 'đen', vehicleType: 'motorbike', helmetsOnVehicle: 0, helmetsWorn: 0, otherItems: [],
+      confidence: { plate: 0.95, color: 0.9, helmets: 0.9 } }) }] } }] }) }));
+    gas.retryFailedAnalyses();
+    expect(gas.findBy('Sessions', 'id', 'SNK')).toMatchObject({ plate: '77-C1 399.97', plateStatus: 'read' });
+    const done = gas.findBy('Photos', 'id', 'PNK');
+    expect(done.analysisStatus).toBe('done');
+    expect(done.analysisError || '').toBe(''); // lỗi cũ đã được xóa
+    props.setProperty('VISION_API_KEY', '');
+  });
+
+  it('Ảnh lên TRƯỚC lượt gửi / lượt trả (chụp 2 xe liên tiếp) → máy chủ vẫn gắn biển số và vẫn cảnh báo khác xe', () => {
+    const props = gas.PropertiesService.getScriptProperties();
+    props.setProperty('VISION_API_KEY', 'khoa-thu');
+    props.setProperty('VISION_PROVIDER', 'gemini');
+    const reply = (color, plate) => ({ code: 200, body: JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({
+      plate, color, vehicleType: 'motorbike', helmetsOnVehicle: 1, helmetsWorn: 0, otherItems: [],
+      confidence: { plate: plate ? 0.95 : 0, color: 0.9, helmets: 0.9 } }) }] } }] }) });
+    const t = new Date().toISOString();
+    // 1) ảnh lúc vào lên trước — máy chủ chưa có lượt gửi
+    fake.setFetch(() => reply('đen', '77-C1 399.97'));
+    call('uploadPhoto', { photoId: 'EARLYin', sessionId: 'EARLY', kind: 'in', takenAt: t, jpegBase64: 'eA==' }, manager, 'dA');
+    expect(gas.findBy('Photos', 'id', 'EARLYin').analysisStatus).toBe('done');
+    // 2) lượt gửi đến sau → tự gắn biển số
+    const push1 = call('push', { ops: [{ opId: 'early-c', type: 'createSession', createdAt: t,
+      payload: { id: 'EARLY', ticketDate: today(), ticketNo: 99, noTicket: false, vehicleType: 'motorbike', inAt: t, inPhotoId: 'EARLYin' } }] }, manager, 'dA');
+    expect(push1.ok).toBe(true);
+    expect(gas.findBy('Sessions', 'id', 'EARLY')).toMatchObject({ plate: '77-C1 399.97', plateStatus: 'read', inSummary: 'Xe máy màu đen · 1 mũ' });
+    // 3) ảnh lúc ra (xe KHÁC, màu đỏ, biển khác) lên trước lệnh trả xe
+    fake.setFetch(() => reply('đỏ', '59X1-123.45'));
+    call('uploadPhoto', { photoId: 'EARLYout', sessionId: 'EARLY', kind: 'out', takenAt: t, jpegBase64: 'eA==' }, manager, 'dB');
+    expect(gas.readObjects('Alerts').filter((a) => a.sessionId === 'EARLY')).toHaveLength(0); // chưa trả xe → chưa so sánh
+    // 4) lệnh trả xe đến sau → so sánh và cảnh báo
+    call('push', { ops: [{ opId: 'early-o', type: 'checkout', createdAt: t, payload: { sessionId: 'EARLY', outAt: t, outPhotoId: 'EARLYout' } }] }, manager, 'dB');
+    const kinds = gas.readObjects('Alerts').filter((a) => a.sessionId === 'EARLY').map((a) => a.kind).sort();
+    expect(kinds).toEqual(['color_mismatch', 'plate_mismatch']);
+    props.setProperty('VISION_API_KEY', '');
+  });
 });

@@ -4,7 +4,7 @@ import * as db from '../db.js';
 import * as sync from '../sync.js';
 import { managedCamera, captureJpeg, captureViaInput } from '../camera.js';
 import { startScan } from '../scanner.js';
-import { h, toast, uuid } from '../ui.js';
+import { h, toast, uuid, fill } from '../ui.js';
 import {
   formatNo, parseTypedNumber, parseQr, suggestNext, blockedNumbers, validateForCheckin,
   maxTicketNo, remainingTickets, ticketMessage,
@@ -51,7 +51,7 @@ export async function render(root, ctx) {
   const noTicketBtn = h('button', { type: 'button', id: 'no-ticket-btn', class: 'ghost small', style: 'width:100%' }, 'Gửi xe không phiếu (hết phiếu)');
   const captureBtn = h('button', { type: 'button', id: 'capture', class: 'primary' }, '📷 CHỤP — GỬI XE');
 
-  root.replaceChildren(
+  fill(root, 
     banner, plateDup, label, numberInput, error, warn,
     h('div', { class: 'segmented' }, typeBtns),
     camBox, camMsg,

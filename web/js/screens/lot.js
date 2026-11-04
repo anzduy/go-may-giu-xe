@@ -3,7 +3,7 @@
 import * as db from '../db.js';
 import * as sync from '../sync.js';
 import { start as startCamera, captureJpeg, captureViaInput } from '../camera.js';
-import { h, toast, uuid, timeVN, dateVN, asyncPhoto } from '../ui.js';
+import { h, toast, uuid, timeVN, dateVN, asyncPhoto, fill } from '../ui.js';
 import { hashParams } from '../ctx.js';
 import { formatNo, parseTypedNumber } from '../../shared/ticket.js';
 import { normalizePlate } from '../../shared/sessions.js';
@@ -22,11 +22,11 @@ export async function render(root, ctx) {
     top.push(h('div', { class: 'banner warn', id: 'lost-banner' },
       'Không khớp / mất phiếu: tìm đúng xe khách chỉ trong lưới ảnh, kiểm tra giấy tờ xe, rồi chạm vào xe để trả xe mất phiếu.'));
   }
-  root.replaceChildren(...top, panel, search, count, grid);
+  fill(root, ...top, panel, search, count, grid);
 
   function closePanel() {
     if (cam) { cam.stop(); cam = null; }
-    panel.replaceChildren();
+    fill(panel, );
   }
 
   async function paint() {
@@ -36,7 +36,7 @@ export async function render(root, ctx) {
     if (q) list = list.filter((s) => String(s.ticketNo) === String(Number(q)) || formatNo(s.ticketNo).includes(q) || (qPlate && normalizePlate(s.plate).includes(qPlate)));
     list.sort((a, b) => String(b.inAt).localeCompare(String(a.inAt)));
     count.textContent = `${list.length} xe`;
-    grid.replaceChildren(...list.map((s) =>
+    fill(grid, ...list.map((s) =>
       h('button', { type: 'button', class: 'tile', 'data-id': s.id, onclick: () => select(s.id) },
         asyncPhoto(s.inPhotoId, `Phiếu ${formatNo(s.ticketNo)}`, db.getPhotoResult, { zoom: false }),
         h('div', {}, h('b', {}, `Phiếu ${formatNo(s.ticketNo)}`), ` · ${timeVN(s.inAt)}`,
@@ -51,7 +51,7 @@ export async function render(root, ctx) {
     const lostBtn = h('button', { type: 'button', class: 'danger', id: 'lost-btn' }, 'Trả xe – mất phiếu');
     const reBtn = h('button', { type: 'button', id: 'reassign-btn' }, 'Gán lại số phiếu');
     const detailBtn = h('button', { type: 'button', class: 'ghost small', onclick: () => ctx.navigate(`#session?id=${encodeURIComponent(s.id)}`) }, 'Xem chi tiết');
-    panel.replaceChildren(h('div', { class: 'card', id: 'lot-selected' },
+    fill(panel, h('div', { class: 'card', id: 'lot-selected' },
       h('div', { class: 'info-line' }, `Phiếu ${formatNo(s.ticketNo)}${s.plate ? ` · ${s.plate}` : ''}`),
       h('div', { class: 'muted' }, `${VEHICLE_TYPES[s.vehicleType] || ''} · vào ${timeVN(s.inAt)} ngày ${dateVN(s.ticketDate)}${s.inSummary ? ` · ${s.inSummary}` : ''}`),
       asyncPhoto(s.inPhotoId, 'Ảnh lúc vào', db.getPhotoResult),
@@ -70,7 +70,7 @@ export async function render(root, ctx) {
     const note = h('textarea', { id: 'lost-note', rows: '3', placeholder: 'Ví dụ: đã xem cà vẹt, tên Nguyễn Văn A, SĐT …' });
     const err = h('div', { class: 'error-text', id: 'lost-error' });
     const go = h('button', { type: 'button', class: 'primary', id: 'lost-go' }, `Chụp & trả xe · thu ${formatMoney(fee)}`);
-    panel.replaceChildren(h('div', { class: 'card' },
+    fill(panel, h('div', { class: 'card' },
       h('div', { class: 'banner danger' }, `Trả xe MẤT PHIẾU — phiếu ${formatNo(s.ticketNo)} · thu ${formatMoney(fee)}`),
       h('p', {}, 'Kiểm tra giấy tờ xe (cà vẹt, CCCD) trước khi trả.'),
       h('label', { for: 'lost-note' }, 'Ghi chú (bắt buộc)'), note, err, camBox,
@@ -107,7 +107,7 @@ export async function render(root, ctx) {
     const note = h('input', { id: 'reassign-note', placeholder: 'Lý do, ví dụ: lúc gửi đưa nhầm phiếu' });
     const err = h('div', { class: 'error-text', id: 'reassign-error' });
     const go = h('button', { type: 'button', class: 'primary', id: 'reassign-go' }, 'Lưu số mới');
-    panel.replaceChildren(h('div', { class: 'card' },
+    fill(panel, h('div', { class: 'card' },
       h('div', { class: 'info-line' }, `Gán lại số cho xe đang ghi phiếu ${formatNo(s.ticketNo)}`),
       h('label', { for: 'reassign-no' }, 'Số phiếu mới'), no,
       h('label', { for: 'reassign-note' }, 'Ghi chú (bắt buộc)'), note, err,
@@ -132,7 +132,16 @@ export async function render(root, ctx) {
   }
 
   search.addEventListener('input', paint);
-  window.addEventListener('sync:changed', paint);
+  // Đồng bộ ngầm chạy mỗi 3 giây: chỉ vẽ lại lưới khi danh sách xe THẬT SỰ đổi (không thì ảnh đang tải bị vẽ lại mãi).
+  let lastSig = '';
+  const signature = async () => (await db.allSessions()).filter((s) => s.status === 'in_lot')
+    .map((s) => `${s.id}:${s.ticketNo}:${s.plate || ''}:${s.inSummary || ''}`).sort().join('|');
+  const onSync = async () => {
+    const sig = await signature();
+    if (sig !== lastSig) { lastSig = sig; paint(); }
+  };
+  window.addEventListener('sync:changed', onSync);
+  lastSig = await signature();
   await paint();
-  return () => { window.removeEventListener('sync:changed', paint); closePanel(); };
+  return () => { window.removeEventListener('sync:changed', onSync); closePanel(); };
 }

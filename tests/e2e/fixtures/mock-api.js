@@ -57,6 +57,13 @@ export function createMock() {
         if (r.changed.length) {
           rev++;
           for (const s of r.changed) state.sessions.set(s.id, { ...s, rev });
+          // giống gas/Sessions.js applyEarlyAnalyses_: ảnh đã lên trước thao tác
+          for (const c of r.changed) {
+            const ain = analyses.get(c.inPhotoId);
+            const cur = state.sessions.get(c.id);
+            if (ain && ain.confidence && cur.plateStatus === 'pending' && !cur.inSummary) { rev++; state.sessions.set(c.id, { ...applyInAnalysis(cur, ain), rev }); }
+            if (c.outPhotoId && ['returned', 'lost'].includes(c.status)) runCompare(c.id);
+          }
           for (const res of r.results) if (res.session) res.session = state.sessions.get(res.session.id);
         }
         return ok({ results: r.results, rev });
@@ -74,7 +81,9 @@ export function createMock() {
           photos.set(data.photoId, { ...data });
           const session = state.sessions.get(data.sessionId);
           const a = analyze && session ? analyze(data, session) : null;
-          if (a) { rev++; analyses.set(data.photoId, { ...a, analysisStatus: a.status || 'done', id: data.photoId, sessionId: data.sessionId, kind: data.kind, rev }); }
+          rev++;
+          analyses.set(data.photoId, a ? { ...a, analysisStatus: a.status || 'done', id: data.photoId, sessionId: data.sessionId, kind: data.kind, rev }
+            : { analysisStatus: 'disabled', analysisError: 'DISABLED', id: data.photoId, sessionId: data.sessionId, kind: data.kind, rev });
           if (a && data.kind === 'in') { rev++; state.sessions.set(session.id, { ...applyInAnalysis(session, a), rev }); }
           if (a) runCompare(data.sessionId);
         }

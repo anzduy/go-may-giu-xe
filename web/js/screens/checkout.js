@@ -3,7 +3,7 @@ import * as db from '../db.js';
 import * as sync from '../sync.js';
 import { managedCamera, captureJpeg, captureViaInput } from '../camera.js';
 import { startScan } from '../scanner.js';
-import { h, toast, uuid, timeVN, dateVN, asyncPhoto } from '../ui.js';
+import { h, toast, uuid, timeVN, dateVN, asyncPhoto, fill } from '../ui.js';
 import { formatNo, parseTypedNumber, parseQr, validateForCheckout, ticketMessage, maxTicketNo } from '../../shared/ticket.js';
 import { VEHICLE_TYPES, formatMoney } from '../../shared/pricing.js';
 
@@ -18,7 +18,7 @@ export async function render(root, ctx) {
   const camBox = h('div', { class: 'camera' }, video, sleepCover, h('div', { class: 'frame' }, h('span', {}, 'Đưa mã QR trên phiếu vào khung')));
   const view = h('div', { id: 'checkout-view' });
   const bottom = h('div', { class: 'bottom-bar hidden' });
-  root.replaceChildren(view, bottom);
+  fill(root, view, bottom);
 
   // Camera tự nghỉ sau 1 phút không thao tác / khi app chạy nền; chạm màn hình hoặc bấm TRẢ XE là bật lại.
   let camFailed = false;
@@ -59,7 +59,7 @@ export async function render(root, ctx) {
 
   function showMessage(text, node) {
     msg.textContent = text || '';
-    extra.replaceChildren(...(node ? [node] : []));
+    fill(extra, ...(node ? [node] : []));
   }
 
   function lookup() {
@@ -73,7 +73,7 @@ export async function render(root, ctx) {
     };
     go.addEventListener('click', submit);
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
-    view.replaceChildren(
+    fill(view, 
       h('div', { class: 'ticket-label' }, 'Quét mã QR trên phiếu — hoặc gõ số phiếu'),
       camBox,
       h('div', { class: 'keypad-row', style: 'margin-top:10px' }, input, go),
@@ -123,7 +123,7 @@ export async function render(root, ctx) {
       btn.addEventListener('click', () => confirm(s));
       return btn;
     }));
-    view.replaceChildren(h('div', { class: 'banner warn' }, `Có ${matches.length} xe cùng số phiếu — chọn đúng xe theo ảnh và ngày`),
+    fill(view, h('div', { class: 'banner warn' }, `Có ${matches.length} xe cùng số phiếu — chọn đúng xe theo ảnh và ngày`),
       h('div', { class: 'list', id: 'choose-list' }, items),
       h('button', { type: 'button', style: 'width:100%;margin-top:10px', onclick: lookup }, '← Quay lại'));
   }
@@ -133,7 +133,7 @@ export async function render(root, ctx) {
     scanning(false);
     const staffNames = await db.getMeta('staffNames', {});
     const otherDay = session.ticketDate !== today ? ` · phiếu ngày ${dateVN(session.ticketDate)}` : '';
-    view.replaceChildren(
+    fill(view, 
       h('div', { class: 'split' },
         h('div', {}, h('div', { class: 'ticket-label' }, 'Ảnh lúc vào'), asyncPhoto(session.inPhotoId, 'Ảnh xe lúc vào', db.getPhotoResult)),
         h('div', { class: 'card', id: 'confirm-info' },
@@ -154,7 +154,7 @@ export async function render(root, ctx) {
       ctx.navigate(`#lot?mode=lost&session=${encodeURIComponent(session.id)}`);
     });
     doneBtn.addEventListener('click', () => checkout(session));
-    bottom.replaceChildren(back, mismatch, doneBtn);
+    fill(bottom, back, mismatch, doneBtn);
     bottom.classList.remove('hidden');
   }
 
@@ -205,7 +205,7 @@ export async function render(root, ctx) {
       toast(`Đã trả xe tạm phiếu ${formatNo(no)} — sẽ tự ghép khi đồng bộ`, { ms: 4000 });
       lookup();
     });
-    view.replaceChildren(
+    fill(view, 
       h('div', { class: 'banner warn' }, `Trả xe tạm — phiếu ${formatNo(no)} (ngày ${dateVN(ticketDate)})`),
       h('p', {}, 'Kiểm tra giấy tờ xe trước. App sẽ chụp ảnh xe lúc ra và tự ghép với lượt gửi khi máy cổng vào đồng bộ.'),
       camBox, h('label', { for: 'provisional-note' }, 'Ghi chú (bắt buộc)'), note, err,

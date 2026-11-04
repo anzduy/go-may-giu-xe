@@ -1,7 +1,7 @@
 // CHI TIẾT LƯỢT GỬI: ảnh lúc vào và lúc ra đặt cạnh nhau (chạm để phóng to), giờ, nhân viên, tiền, diễn biến.
 import * as db from '../db.js';
 import * as sync from '../sync.js';
-import { h, timeVN, dateVN, asyncPhoto, toast, uuid } from '../ui.js';
+import { h, timeVN, dateVN, asyncPhoto, toast, uuid, fill } from '../ui.js';
 import { hashParams } from '../ctx.js';
 import { formatNo } from '../../shared/ticket.js';
 import { VEHICLE_TYPES, formatMoney } from '../../shared/pricing.js';
@@ -14,10 +14,22 @@ const STATUS_VN = { in_lot: 'Đang trong bãi', returned: 'Đã trả xe', lost:
 export async function render(root, ctx) {
   const { id } = hashParams();
   const s = id && (await db.getSession(id));
-  if (!s) { root.replaceChildren(h('div', { class: 'banner danger' }, 'Không tìm thấy lượt gửi này trên máy')); return; }
+  if (!s) { fill(root, h('div', { class: 'banner danger' }, 'Không tìm thấy lượt gửi này trên máy')); return; }
   const names = await db.getMeta('staffNames', {});
   const who = (sid) => names[sid] || sid || '';
 
+  // Phần AI tự làm mới khi kết quả AI / biển số về sau (đồng bộ ngầm)
+  const analysisHolder = h('div', { id: 'analysis-holder' }, await analysisCard(s, ctx));
+  const refreshAnalysis = async (e) => {
+    const ids = (e && e.detail && e.detail.ids) || [];
+    if (e && e.type === 'analyses:changed' && !ids.includes(s.inPhotoId) && !ids.includes(s.outPhotoId)) return;
+    if (!document.body.contains(analysisHolder)) return;
+    const fresh = await db.getSession(s.id);
+    if (fresh) Object.assign(s, fresh);
+    fill(analysisHolder, await analysisCard(s, ctx));
+  };
+  window.addEventListener('analyses:changed', refreshAnalysis);
+  window.addEventListener('alerts:changed', refreshAnalysis);
   const timeline = [
     s.inAt ? `Gửi xe ${timeVN(s.inAt)} ngày ${dateVN(s.ticketDate)} — ${who(s.inStaffId)}` : null,
     s.outAt ? `${s.status === 'lost' ? 'Trả xe (mất phiếu)' : s.status === 'provisional' ? 'Trả xe tạm' : 'Trả xe'} ${timeVN(s.outAt)} — ${who(s.outStaffId)}` : null,
@@ -27,7 +39,7 @@ export async function render(root, ctx) {
     s.mergedInto ? `Đã ghép vào lượt ${s.mergedInto}` : null,
   ].filter(Boolean);
 
-  root.replaceChildren(
+  fill(root, 
     h('div', { class: 'info-line' }, `Phiếu ${formatNo(s.ticketNo)}${s.noTicket ? ' (không phiếu)' : ''}${s.plate ? ` · ${s.plate}` : ''}`),
     h('div', { class: 'muted' }, `${VEHICLE_TYPES[s.vehicleType] || ''} · ${STATUS_VN[s.status] || s.status}${s.fee != null ? ` · Đã thu ${formatMoney(s.fee)}` : ''}`),
     h('div', { class: 'side-by-side', id: 'photo-pair', style: 'margin-top:10px' },
@@ -36,14 +48,18 @@ export async function render(root, ctx) {
         h('figcaption', {}, s.outAt ? `Lúc ra ${timeVN(s.outAt)}` : ''))),
     savePhotosRow(s),
     plateEditor(s, ctx),
-    await analysisCard(s, ctx),
+    analysisHolder,
     s.inSummary ? h('div', { class: 'warn-text', id: 'detail-summary' }, `AI: ${s.inSummary}`) : null,
     h('div', { class: 'card', style: 'margin-top:10px' }, h('b', {}, 'Diễn biến'), h('ul', { class: 'timeline' }, timeline.map((t) => h('li', {}, t)))),
     h('button', { type: 'button', style: 'width:100%', onclick: () => history.back() }, '← Quay lại'),
   );
+  return () => {
+    window.removeEventListener('analyses:changed', refreshAnalysis);
+    window.removeEventListener('alerts:changed', refreshAnalysis);
+  };
 }
 
-const PLATE_VN = { pending: 'đang chờ AI đọc', read: 'AI đọc', unreadable: 'AI không đọc được', manual: 'nhập tay' };
+const PLATE_VN = { pending: 'chưa có (xem trạng thái AI bên dưới)', read: 'AI đọc', unreadable: 'AI không đọc được', manual: 'nhập tay' };
 
 /** Ô sửa biển số (nhân viên/quản lý) → thao tác setPlate, đồng bộ ngầm. */
 function plateEditor(s, ctx) {
@@ -67,8 +83,21 @@ function plateEditor(s, ctx) {
 
 const pct = (v) => `${Math.round((Number(v) || 0) * 100)}%`;
 
+const AI_ERR = {
+  DISABLED: 'AI chưa bật', HTTP_400: 'khóa AI sai hoặc yêu cầu lỗi', HTTP_401: 'khóa AI sai', HTTP_403: 'khóa AI sai / không có quyền',
+  HTTP_404: 'tên model AI sai', HTTP_429: 'hết lượt AI miễn phí, sẽ thử lại sau', HTTP_500: 'máy chủ AI lỗi, sẽ thử lại', HTTP_503: 'máy chủ AI quá tải, sẽ thử lại',
+  REFUSAL: 'AI từ chối ảnh này', BAD_JSON: 'AI trả kết quả lỗi', EMPTY: 'AI không trả kết quả',
+};
+const AI_STATUS = {
+  disabled: () => 'AI chưa bật — chủ sân thêm VISION_API_KEY trong Apps Script (ảnh sẽ được đọc lại trong 5 phút)',
+  pending: () => 'Đang chờ AI đọc…',
+  failed: (a) => `AI lỗi: ${AI_ERR[a.analysisError] || a.analysisError || 'không rõ'} — tự thử lại mỗi 5 phút`,
+  gave_up: (a) => `AI lỗi nhiều lần (${AI_ERR[a.analysisError] || a.analysisError || 'không rõ'}) — đã dừng thử`,
+};
+
 function analysisLine(a) {
-  if (!a) return h('div', { class: 'muted' }, 'Chưa có kết quả AI');
+  if (!a) return h('div', { class: 'muted' }, 'Chưa có kết quả AI (ảnh chưa sao lưu lên máy chủ?)');
+  if (AI_STATUS[a.analysisStatus]) return h('div', { class: 'warn-text ai-status' }, AI_STATUS[a.analysisStatus](a));
   return h('div', {},
     h('div', {}, `Màu: ${a.color} (${pct(a.confidence.color)})`),
     h('div', {}, `Mũ trên xe: ${a.helmetsOnVehicle} · đội: ${a.helmetsWorn} (${pct(a.confidence.helmets)})`),

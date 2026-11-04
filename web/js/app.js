@@ -96,12 +96,25 @@ async function onLogin({ token, staff, qrSecret, serverTime }) {
   if (location.hash.slice(1).split('?')[0] === last) route(); else location.hash = `#${last}`;
 }
 
+let loggingOut = false;
+
 async function logout() {
+  const me = ctx.staff;
+  if (!me || loggingOut) return; // bấm Thoát 2 lần / đang thoát rồi → bỏ qua
+  loggingOut = true;
+  try {
+    await doLogout(me);
+  } finally {
+    loggingOut = false;
+  }
+}
+
+async function doLogout(me) {
   const pending = await db.outboxCount();
   if (pending && !confirm(`Còn ${pending} thao tác chưa gửi lên máy chủ. Vẫn thoát? (dữ liệu vẫn giữ trên máy, đăng nhập lại sẽ gửi tiếp)`)) return;
   const start = await db.getMeta('shiftStart');
-  const mine = start && (await db.allSessions()).some((s) => (s.inStaffId === ctx.staff.id && String(s.inAt) >= start)
-    || (s.outStaffId === ctx.staff.id && String(s.outAt) >= start));
+  const mine = start && (await db.allSessions()).some((s) => (s.inStaffId === me.id && String(s.inAt) >= start)
+    || (s.outStaffId === me.id && String(s.outAt) >= start));
   if (mine && !confirm('Bạn CHƯA CHỐT CA. Vẫn thoát? (số liệu ca vẫn được giữ — đăng nhập lại bằng tên của bạn sẽ thấy tiếp)')) return;
   sync.stop();
   ctx.staff = null;

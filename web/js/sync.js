@@ -38,12 +38,26 @@ function blobToBase64(blob) {
 async function uploadPhotos(budgetMs = 8000) {
   const t0 = Date.now();
   while (Date.now() - t0 < budgetMs && navigator.onLine) {
-    const p = nextPhotoToUpload(await db.unsentPhotos(), Date.now());
+    // Chỉ gửi ảnh khi thao tác của lượt đó (gửi xe / trả xe) ĐÃ lên máy chủ — gửi ảnh trước thì máy chủ không biết
+    // gắn kết quả AI (biển số, cảnh báo) vào lượt nào.
+    const waiting = pendingSessionIds(await db.outboxAll());
+    const p = nextPhotoToUpload((await db.unsentPhotos()).filter((x) => !waiting.has(x.sessionId)), Date.now());
     if (!p) return true;
+    let b64;
+    try {
+      b64 = await Promise.race([blobToBase64(p.blob), new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 8000))]);
+      if (!b64) throw new Error('empty');
+    } catch {
+      // Ảnh trên máy không đọc được (lỗi Safari với ảnh cũ) → đánh dấu hỏng, không thử mãi, báo cho người dùng.
+      await db.putPhoto({ ...p, blob: null, uploadState: 'broken', lastError: 'LOCAL_PHOTO_BROKEN' });
+      emit('sync:photoError', { code: 'LOCAL_PHOTO_BROKEN', message: 'Một ảnh trên máy bị lỗi (Safari), không sao lưu được — các ảnh mới không bị ảnh hưởng' });
+      await emitPending();
+      continue;
+    }
     await db.putPhoto({ ...p, uploadState: 'uploading', uploadingAt: Date.now() });
     const r = await call('uploadPhoto', {
-      photoId: p.id, sessionId: p.sessionId, kind: p.kind, takenAt: p.takenAt, jpegBase64: await blobToBase64(p.blob),
-    }, { timeoutMs: 60000 });
+      photoId: p.id, sessionId: p.sessionId, kind: p.kind, takenAt: p.takenAt, jpegBase64: b64,
+    }, { timeoutMs: 90000 });
     const fresh = (await db.getPhoto(p.id)) || p;
     if (r.ok) {
       await db.putPhoto({ ...fresh, uploadState: 'done', driveFileId: r.data.driveFileId, uploadedAt: new Date().toISOString() });
@@ -107,7 +121,10 @@ async function pullOnce() {
   if (d.staffNames) await db.setMeta('staffNames', d.staffNames);
   if (d.config && d.config.alertThreshold) await db.setMeta('alertThreshold', d.config.alertThreshold);
   if (d.config && typeof d.config.visionEnabled === 'boolean') await db.setMeta('visionEnabled', d.config.visionEnabled);
-  if (d.analyses && d.analyses.length) await db.putAnalyses(d.analyses);
+  if (d.analyses && d.analyses.length) {
+    await db.putAnalyses(d.analyses);
+    emit('analyses:changed', { ids: d.analyses.map((a) => a.id) });
+  }
   if (d.alerts && d.alerts.length) {
     await db.putAlerts(d.alerts);
     emit('alerts:changed', { count: d.alerts.length });

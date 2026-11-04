@@ -2,7 +2,7 @@
 // gửi lên máy chủ để chủ sân đối chiếu. Tiền cần nộp = tiền các lượt mình TRẢ xe trong ca.
 import * as db from '../db.js';
 import * as sync from '../sync.js';
-import { h, toast, uuid, timeVN, dateVN, asyncPhoto } from '../ui.js';
+import { h, toast, uuid, timeVN, dateVN, asyncPhoto, fill } from '../ui.js';
 import { formatNo, remainingTickets } from '../../shared/ticket.js';
 import { summarize } from '../../shared/report.js';
 import { VEHICLE_TYPES, formatMoney } from '../../shared/pricing.js';
@@ -44,7 +44,7 @@ export async function render(root, ctx) {
   }
 
   const inLot = sessions.filter((s) => s.status === 'in_lot').sort((a, b) => String(a.inAt).localeCompare(String(b.inAt)));
-  root.replaceChildren(
+  fill(root, 
     h('div', { class: 'muted' }, `${ctx.staff.name} · ca bắt đầu ${timeVN(start)} · còn ${remaining} phiếu`),
     summaryCard(sum, 'Ca hiện tại'),
     lastBox,
