@@ -1,4 +1,4 @@
-// Chia phiếu thành trang A4 (mặc định 12 phiếu/trang: 2 cột × 6 hàng, mỗi phiếu ~97 × 47 mm — gấp đôi diện tích
+// Chia phiếu thành trang A4 (mặc định 12 phiếu/trang: 2 cột × 6 hàng, mỗi phiếu ~97 × 43 mm — gấp đôi diện tích
 // bản cũ 24 phiếu/trang), mỗi trang là các số liên tiếp.
 export const PER_PAGE = 12;
 

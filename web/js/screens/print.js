@@ -6,7 +6,7 @@ import { h, toast, dateVN, timeVN, fill } from '../ui.js';
 import { paginate } from '../print-layout.js';
 import { formatNo, dateKey } from '../../shared/ticket.js';
 import { lostFee, formatMoney } from '../../shared/pricing.js';
-import { BOOKING_PHONE, TICKET_NOTICE } from '../../config.js';
+import { VENUE_NAME, BOOKING_PHONE, TICKET_NOTICE } from '../../config.js';
 
 function qrSvg(text) {
   const qr = window.qrcode(0, 'M');
@@ -20,11 +20,11 @@ function ticketEl(date, t, feeText) {
     h('div', { class: 'ticket-main' },
       h('div', { class: 'qr', html: qrSvg(t.qr) }),
       h('div', { class: 'ticket-text' },
-        h('div', { class: 'brand' }, 'Gò Mây Arena'),
+        h('div', { class: 'brand' }, VENUE_NAME),
         h('div', { class: 'no' }, formatNo(t.no)),
         h('div', { class: 'date' }, dateVN(date)),
         h('div', { class: 'hint' }, `Giữ phiếu để lấy xe · Mất phiếu ${feeText}`),
-        h('div', { class: 'phone' }, `☎ Đặt sân: ${BOOKING_PHONE}`))),
+        h('div', { class: 'phone' }, `\u260E\uFE0E Đặt sân: ${BOOKING_PHONE}`))),
     h('div', { class: 'notice' }, TICKET_NOTICE));
 }
 

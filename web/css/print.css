@@ -1,23 +1,25 @@
-/* Trang in phiếu QR: A4, 2 cột × 6 hàng = 12 phiếu/trang (mỗi phiếu ~97 × 47 mm), đường cắt nét đứt. */
+/* Trang in phiếu QR: A4, 2 cột × 6 hàng = 12 phiếu/trang (mỗi phiếu ~97 × 43 mm), đường cắt nét đứt.
+   Chiều cao trang phiếu 258 mm (vùng in A4 là 281 mm) → chừa ~23 mm cho trình duyệt in thêm tiêu đề / chân trang
+   (URL, ngày, số trang) hoặc lề lớn hơn mà vẫn KHÔNG tràn sang trang sau. */
 .print-area { display: grid; gap: 16px; }
 .print-page {
   background: #fff; color: #000; width: 100%; max-width: 194mm; margin: 0 auto;
   display: grid; grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(6, 1fr);
-  aspect-ratio: 194 / 281; border: 1px solid #ccc;
+  aspect-ratio: 194 / 258; border: 1px solid #ccc;
 }
 /* Trên màn hình: xem trước co giãn theo bề ngang (container query). Khi in: kích thước thật bằng mm. */
 .print-page { container-type: inline-size; }
 .ticket { display: flex; flex-direction: column; gap: 0.8cqw; padding: 1.3cqw 2cqw; border: 1px dashed #777; overflow: hidden; min-height: 0; }
 .ticket-main { display: flex; gap: 2cqw; align-items: center; flex: 1; min-height: 0; }
-.ticket .qr { flex: 0 0 17cqw; width: 17cqw; height: 17cqw; }
+.ticket .qr { flex: 0 0 15cqw; width: 15cqw; height: 15cqw; }
 .ticket .qr svg { width: 100%; height: 100%; display: block; }
 .ticket-text { flex: 1; min-width: 0; line-height: 1.05; font-family: Arial, Helvetica, sans-serif; }
-.ticket .brand { font-size: 2.2cqw; font-weight: 700; }
-.ticket .no { font-size: 7.4cqw; font-weight: 900; letter-spacing: 0.15cqw; font-variant-numeric: tabular-nums; }
-.ticket .date { font-size: 2.5cqw; font-weight: 700; }
-.ticket .hint { font-size: 1.5cqw; margin-top: 0.4cqw; }
-.ticket .phone { font-size: 2cqw; font-weight: 700; margin-top: 0.4cqw; }
-.ticket .notice { font-family: Arial, Helvetica, sans-serif; font-size: 1.45cqw; line-height: 1.2; font-style: italic; border-top: 1px solid #bbb; padding-top: 0.6cqw; }
+.ticket .brand { font-size: 1.8cqw; font-weight: 700; white-space: nowrap; }
+.ticket .no { font-size: 6.2cqw; font-weight: 900; letter-spacing: 0.15cqw; font-variant-numeric: tabular-nums; }
+.ticket .date { font-size: 2cqw; font-weight: 700; }
+.ticket .hint { font-size: 1.4cqw; margin-top: 0.4cqw; }
+.ticket .phone { font-size: 1.8cqw; font-weight: 700; margin-top: 0.4cqw; }
+.ticket .notice { font-family: Arial, Helvetica, sans-serif; font-size: 1.3cqw; line-height: 1.2; font-style: italic; border-top: 1px solid #bbb; padding-top: 0.6cqw; }
 
 @media print {
   @page { size: A4; margin: 8mm; }
@@ -26,17 +28,17 @@
   #screen { padding: 0 !important; max-width: none !important; }
   .print-area { display: block; }
   .print-page {
-    width: 194mm; height: 281mm; max-width: none; aspect-ratio: auto; border: 0;
-    page-break-after: always; break-after: page;
+    width: 194mm; height: 258mm; max-width: none; aspect-ratio: auto; border: 0; overflow: hidden;
+    page-break-after: always; break-after: page; break-inside: avoid; page-break-inside: avoid;
   }
   .print-page:last-child { page-break-after: auto; break-after: auto; }
-  .ticket { gap: 1.5mm; padding: 2.5mm 4mm; border: 0.3mm dashed #777; }
+  .ticket { gap: 1mm; padding: 2mm 4mm; border: 0.3mm dashed #777; }
   .ticket-main { gap: 4mm; }
-  .ticket .qr { flex: 0 0 33mm; width: 33mm; height: 33mm; }
-  .ticket .brand { font-size: 12pt; }
-  .ticket .no { font-size: 40pt; letter-spacing: 1.5px; }
-  .ticket .date { font-size: 13pt; }
-  .ticket .hint { font-size: 8pt; margin-top: 0.8mm; }
-  .ticket .phone { font-size: 11pt; margin-top: 0.8mm; }
-  .ticket .notice { font-size: 7.8pt; padding-top: 1mm; border-top: 0.2mm solid #999; }
+  .ticket .qr { flex: 0 0 29mm; width: 29mm; height: 29mm; }
+  .ticket .brand { font-size: 10pt; }
+  .ticket .no { font-size: 34pt; letter-spacing: 1.5px; }
+  .ticket .date { font-size: 11pt; }
+  .ticket .hint { font-size: 7.5pt; margin-top: 0.6mm; }
+  .ticket .phone { font-size: 10pt; margin-top: 0.6mm; }
+  .ticket .notice { font-size: 7pt; padding-top: 0.8mm; border-top: 0.2mm solid #999; }
 }
