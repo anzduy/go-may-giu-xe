@@ -339,8 +339,9 @@ function applyOp(session, op, ctx = {}) {
     case 'checkout':
     case 'lostCheckout': {
       if (session.status !== STATUS.IN_LOT) return { error: session.status === STATUS.LOST ? 'TICKET_LOST' : 'TICKET_USED' };
-      if (!p.outAt || !p.outPhotoId) return { error: 'BAD_REQUEST' };
       const lost = op.type === 'lostCheckout';
+      // Trả xe thường: ảnh lúc ra KHÔNG bắt buộc (nhân viên tự chụp thêm khi cần). Mất phiếu: bắt buộc có ảnh.
+      if (!p.outAt || (lost && !p.outPhotoId)) return { error: 'BAD_REQUEST' };
       if (lost && !hasNote(p)) return { error: 'NOTE_REQUIRED' };
       // Phí mất phiếu là TỔNG tiền (không cộng giá thường); đã trả lúc vào thì chỉ thu phần còn thiếu.
       const total = lost ? Number(p.fee != null ? p.fee : ctx.lostFee) : Number(session.priceAtIn);
@@ -348,7 +349,7 @@ function applyOp(session, op, ctx = {}) {
         session: {
           ...session,
           status: lost ? STATUS.LOST : STATUS.RETURNED,
-          outAt: p.outAt, outStaffId: op.staffId, outPhotoId: p.outPhotoId, ...checkoutPayment(session, total, p.payMethod),
+          outAt: p.outAt, outStaffId: op.staffId, ...(p.outPhotoId ? { outPhotoId: p.outPhotoId } : {}), ...checkoutPayment(session, total, p.payMethod),
           ...(lost ? { note: p.note.trim() } : {}),
         },
       };

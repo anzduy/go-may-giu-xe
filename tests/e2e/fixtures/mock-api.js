@@ -214,6 +214,13 @@ export async function login(page, name = 'Tuấn', pin = '1234') {
   await page.locator('#topbar').waitFor({ state: 'visible' });
 }
 
+/** Ở màn hình xác nhận trả xe: bấm nút chụp ảnh lúc ra (không bắt buộc) → chụp → chờ ảnh xem trước. */
+export async function takeOutPhoto(page) {
+  await page.click('#out-photo-btn');
+  await page.click('#out-photo-shoot');
+  await page.locator('#out-photo-preview').waitFor();
+}
+
 /** Giả lập quét QR (camera giả của trình duyệt test không chứa mã QR). */
 export function scan(page, text) {
   return page.evaluate((t) => document.dispatchEvent(new CustomEvent('gomay:scan', { detail: t })), text);

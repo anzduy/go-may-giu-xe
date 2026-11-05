@@ -3,7 +3,7 @@
 App giữ xe cho sân bóng Gò Mây Arena. Chạy trên **Android và iPhone** (mở link, "Thêm vào màn hình chính"),
 dữ liệu lưu ở **Google Sheets**, máy chủ là **Google Apps Script** — chi phí ~0đ/tháng.
 
-- **In phiếu**: mỗi ngày in sẵn ~200 phiếu (số to + mã QR) trên giấy A4, 24 phiếu/trang.
+- **In phiếu**: mỗi ngày in sẵn ~200 phiếu (số to + mã QR) trên giấy A4, 12 phiếu/trang (phiếu cỡ lớn ~97 × 47 mm).
 - **Gửi xe = 1 chạm**: app tự hiện số phiếu tiếp theo, nhân viên chỉ bấm CHỤP (ảnh xe) và đưa phiếu.
   Phiếu lệch số thì chạm vào số để sửa; lượt sau tự nhảy tiếp.
 - **Trả xe**: quét QR hoặc gõ số → xem ảnh lúc vào → bấm TRẢ XE (app tự chụp ảnh lúc ra).
@@ -22,6 +22,10 @@ và dọn Drive hằng đêm (ảnh > 30 ngày; dữ liệu > 90 ngày dời san
 
 ✅ **US4 — mất phiếu**: chọn xe trong lưới ảnh → trả xe mất phiếu (ghi chú bắt buộc, thu phí mất phiếu, chụp ảnh ra);
 gán lại số phiếu khi lúc gửi đưa nhầm phiếu.
+
+✅ **Trả xe 1 chạm**: so xe với ảnh lúc vào → **CHO XE RA** → thẻ xanh **"ĐÃ CHO XE RA — Phiếu …"**; quét lại phiếu
+đã dùng hiện thẻ đỏ "xe ĐÃ RA lúc …". Ảnh lúc ra **không bắt buộc** (nút chụp riêng; có ảnh thì so biển số / màu và
+cảnh báo); mất phiếu và trả xe tạm vẫn bắt buộc chụp ảnh. Phiếu in **cỡ lớn 12 phiếu/trang** A4.
 
 ✅ **Thanh toán linh động**: mặc định **thu lúc gửi xe**; khách muốn thì **trả lúc lấy xe**; mỗi lần thu chọn
 **tiền mặt** hoặc **chuyển khoản**. Chốt ca tách **tiền mặt cần nộp** và **chuyển khoản** (đối chiếu tài khoản).

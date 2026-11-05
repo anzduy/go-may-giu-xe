@@ -1,7 +1,7 @@
 // Đọc biển số + màu TRÊN ĐIỆN THOẠI (web/js/plate-reader.js), không cần AI trên mạng.
 // Bộ đọc thật được kiểm ở plate-reader.spec.js; ở đây thay bằng window.__gomayAnalyzer để kiểm luồng app.
 import { test, expect } from '@playwright/test';
-import { createMock, login, today } from './fixtures/mock-api.js';
+import { createMock, login, today, takeOutPhoto } from './fixtures/mock-api.js';
 
 let mock;
 test.beforeEach(async ({ context }) => {
@@ -43,6 +43,7 @@ test('Điện thoại tự đọc biển số: hiện ngay trên máy, gửi kè
   await page.click('#nav a[href="#checkout"]');
   await page.fill('#typed-no', '1');
   await page.click('#find-btn');
+  await takeOutPhoto(page);
   await page.click('#checkout-btn');
   await expect(page.locator('#alert-float .alert-card')).toBeVisible({ timeout: 20000 });
   expect(mock.alerts().map((a) => a.kind)).toEqual(['plate_mismatch']);

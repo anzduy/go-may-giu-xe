@@ -1,10 +1,12 @@
-// Màn hình TRẢ XE: quét QR hoặc gõ số → xem ảnh lúc vào → bấm "TRẢ XE" (tự chụp ảnh lúc ra).
+// Màn hình TRẢ XE: quét QR hoặc gõ số → so xe với ảnh lúc vào → bấm "CHO XE RA" → hiện thẻ xanh "ĐÃ CHO XE RA".
+// Ảnh lúc ra KHÔNG bắt buộc: nút "Chụp ảnh xe ra" riêng khi muốn lưu thêm bằng chứng (có ảnh thì app so biển số / màu
+// với lúc vào và cảnh báo nếu khác). Mất phiếu và trả xe tạm vẫn BẮT BUỘC chụp ảnh.
 import * as db from '../db.js';
 import * as sync from '../sync.js';
 import { managedCamera, captureJpeg, captureViaInput } from '../camera.js';
 import { startScan } from '../scanner.js';
 import { h, toast, uuid, timeVN, dateVN, asyncPhoto, fill } from '../ui.js';
-import { formatNo, parseTypedNumber, parseQr, validateForCheckout, ticketMessage, maxTicketNo } from '../../shared/ticket.js';
+import { formatNo, parseTypedNumber, parseQr, validateForCheckout, ticketMessage, maxTicketNo, dateKey as dateKeyOf } from '../../shared/ticket.js';
 import { VEHICLE_TYPES, formatMoney } from '../../shared/pricing.js';
 import { ensureLocalAnalysis } from '../analysis.js';
 import { checkoutPayment, dueAtOut, PAY_METHODS, inMethod } from '../../shared/payment.js';
@@ -18,7 +20,9 @@ export async function render(root, ctx) {
 
   const video = h('video', { id: 'cam', autoplay: true, muted: true, playsinline: true });
   const sleepCover = h('button', { type: 'button', class: 'cam-sleep hidden', id: 'cam-sleep' }, '📷 Camera đang nghỉ cho đỡ nóng máy — chạm để bật');
-  const camBox = h('div', { class: 'camera' }, video, sleepCover, h('div', { class: 'frame' }, h('span', {}, 'Đưa mã QR trên phiếu vào khung')));
+  const frameLabel = h('span', {}, 'Đưa mã QR trên phiếu vào khung');
+  const camBox = h('div', { class: 'camera' }, video, sleepCover, h('div', { class: 'frame' }, frameLabel));
+  let lastDone = null; // xe vừa cho ra → thẻ xanh ở đầu màn hình cho tới khi xử lý xe khác
   const view = h('div', { id: 'checkout-view' });
   const bottom = h('div', { class: 'bottom-bar hidden' });
   fill(root, view, bottom);
@@ -65,8 +69,15 @@ export async function render(root, ctx) {
     fill(extra, ...(node ? [node] : []));
   }
 
+  function doneCard(d) {
+    return h('div', { class: 'done-card', id: 'checkout-done', role: 'status' },
+      h('div', { class: 'done-big' }, `✔ ĐÃ CHO XE RA — Phiếu ${formatNo(d.no)}`),
+      h('div', {}, [timeVN(d.at), d.plate, d.money, d.photo ? 'có ảnh lúc ra' : ''].filter(Boolean).join(' · ')));
+  }
+
   function lookup() {
     bottom.classList.add('hidden');
+    frameLabel.textContent = 'Đưa mã QR trên phiếu vào khung';
     const input = h('input', { id: 'typed-no', inputmode: 'numeric', pattern: '[0-9]*', maxlength: '4', placeholder: 'Số phiếu', autocomplete: 'off' });
     const go = h('button', { type: 'button', id: 'find-btn', class: 'primary' }, 'Tìm');
     const submit = () => {
@@ -77,7 +88,8 @@ export async function render(root, ctx) {
     go.addEventListener('click', submit);
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
     fill(view, 
-      h('div', { class: 'ticket-label' }, 'Quét mã QR trên phiếu — hoặc gõ số phiếu'),
+      lastDone ? doneCard(lastDone) : null,
+      h('div', { class: 'ticket-label' }, lastDone ? 'Xe tiếp theo: quét mã QR — hoặc gõ số phiếu' : 'Quét mã QR trên phiếu — hoặc gõ số phiếu'),
       camBox,
       h('div', { class: 'keypad-row', style: 'margin-top:10px' }, input, go),
       msg, extra,
@@ -97,7 +109,11 @@ export async function render(root, ctx) {
     const no = q.ticketNo;
     if (r.error === 'TICKET_USED') {
       const s = r.session;
-      showMessage(s.status === 'provisional' ? `Phiếu ${formatNo(no)} đã trả xe tạm lúc ${timeVN(s.outAt)}` : `Phiếu đã trả xe lúc ${timeVN(s.outAt)}`);
+      const names = await db.getMeta('staffNames', {});
+      const who = names[s.outStaffId] ? ` (${names[s.outStaffId]} trả)` : '';
+      showMessage('', h('div', { class: 'banner danger', id: 'already-out' },
+        s.status === 'provisional' ? `⛔ Phiếu ${formatNo(no)} đã trả xe tạm lúc ${timeVN(s.outAt)}${who}`
+          : `⛔ Phiếu ${formatNo(no)}: xe ĐÃ RA lúc ${timeVN(s.outAt)} ngày ${dateVN(dateKeyOf(s.outAt))}${who} — KHÔNG trả xe lần nữa`));
       return;
     }
     if (r.error === 'TICKET_LOST') { showMessage(`Phiếu đã báo mất, xe đã trả lúc ${timeVN(r.session.outAt)}`); return; }
@@ -131,25 +147,51 @@ export async function render(root, ctx) {
       h('button', { type: 'button', style: 'width:100%;margin-top:10px', onclick: lookup }, '← Quay lại'));
   }
 
-  // ---------- bước 2: xác nhận và trả xe ----------
+  // ---------- bước 2: so xe với ảnh lúc vào → cho xe ra ----------
   async function confirm(session) {
     scanning(false);
+    lastDone = null;
     const picker = methodPicker();
     const staffNames = await db.getMeta('staffNames', {});
     const otherDay = session.ticketDate !== today ? ` · phiếu ngày ${dateVN(session.ticketDate)}` : '';
+    let outBlob = null; // ảnh lúc ra (không bắt buộc)
+    const photoBox = h('div', { id: 'out-photo-box', style: 'margin-top:8px' });
+    const paintPhoto = () => {
+      if (outBlob) {
+        const img = h('img', { class: 'photo', id: 'out-photo-preview', alt: 'Ảnh lúc ra', src: URL.createObjectURL(outBlob) });
+        fill(photoBox, h('div', { class: 'ticket-label' }, '✔ Đã chụp ảnh lúc ra'), img,
+          h('div', { class: 'row', style: 'margin-top:6px' },
+            h('button', { type: 'button', class: 'small', onclick: openCamera }, '📷 Chụp lại'),
+            h('button', { type: 'button', class: 'small ghost', id: 'out-photo-remove', onclick: () => { outBlob = null; paintPhoto(); } }, 'Bỏ ảnh')));
+      } else {
+        fill(photoBox, h('button', { type: 'button', class: 'small', id: 'out-photo-btn', style: 'width:100%', onclick: openCamera }, '📷 Chụp ảnh xe ra (không bắt buộc)'));
+      }
+    };
+    function openCamera() {
+      frameLabel.textContent = 'Chụp xe + biển số';
+      const shoot = h('button', { type: 'button', class: 'primary', id: 'out-photo-shoot' }, '📸 Chụp');
+      shoot.addEventListener('click', async () => {
+        shoot.disabled = true;
+        try { const b = await takePhoto(); if (b) outBlob = b; } finally { paintPhoto(); }
+      });
+      fill(photoBox, camBox, h('div', { class: 'row', style: 'margin-top:6px' },
+        h('button', { type: 'button', class: 'small ghost', onclick: paintPhoto }, 'Hủy'), shoot));
+      camCtl.ensure();
+    }
+    paintPhoto();
     fill(view, 
       h('div', { class: 'split' },
-        h('div', {}, h('div', { class: 'ticket-label' }, 'Ảnh lúc vào'), asyncPhoto(session.inPhotoId, 'Ảnh xe lúc vào', db.getPhotoResult)),
+        h('div', {}, h('div', { class: 'ticket-label' }, 'Ảnh lúc vào — so với xe khách dắt ra'), asyncPhoto(session.inPhotoId, 'Ảnh xe lúc vào', db.getPhotoResult)),
         h('div', { class: 'card', id: 'confirm-info' },
           h('div', { class: 'info-line' }, `Phiếu ${formatNo(session.ticketNo)}${session.plate ? ` · ${session.plate}` : ''}`),
           session.inSummary ? h('div', { class: 'warn-text', id: 'in-summary' }, session.inSummary) : null,
           h('div', { class: 'muted' }, `${VEHICLE_TYPES[session.vehicleType] || 'Xe'} · vào ${timeVN(session.inAt)}${otherDay}`
             + `${staffNames[session.inStaffId] ? ` · ${staffNames[session.inStaffId]} nhận` : ''}`),
           ...feeBlock(session, picker),
-          session.conflict ? h('div', { class: 'error-text' }, `Lưu ý: lượt này có xung đột (${session.conflict}) — quản lý sẽ kiểm tra`) : null),
-        h('div', {}, h('div', { class: 'ticket-label' }, 'Camera (tự chụp ảnh lúc ra khi bấm TRẢ XE)'), camBox)),
+          session.conflict ? h('div', { class: 'error-text' }, `Lưu ý: lượt này có xung đột (${session.conflict}) — quản lý sẽ kiểm tra`) : null,
+          photoBox)),
     );
-    const doneBtn = h('button', { type: 'button', id: 'checkout-btn', class: 'primary' }, '✔ TRẢ XE');
+    const doneBtn = h('button', { type: 'button', id: 'checkout-btn', class: 'primary' }, '✔ CHO XE RA');
     const mismatch = h('button', { type: 'button', id: 'mismatch-btn', class: 'danger' }, 'Không khớp');
     const back = h('button', { type: 'button', class: 'back', 'aria-label': 'Quay lại' }, '←');
     back.addEventListener('click', lookup);
@@ -157,7 +199,10 @@ export async function render(root, ctx) {
       toast('Không trả xe. Kiểm tra giấy tờ xe và tìm đúng xe trong bãi.', { ms: 5000, error: true });
       ctx.navigate(`#lot?mode=lost&session=${encodeURIComponent(session.id)}`);
     });
-    doneBtn.addEventListener('click', () => checkout(session, picker.value));
+    doneBtn.addEventListener('click', async () => {
+      doneBtn.disabled = true; // chống bấm 2 lần
+      try { await checkout(session, picker.value, outBlob); } finally { doneBtn.disabled = false; }
+    });
     fill(bottom, back, mismatch, doneBtn);
     bottom.classList.remove('hidden');
   }
@@ -171,24 +216,27 @@ export async function render(root, ctx) {
     return [h('div', { class: 'fee', id: 'fee-due' }, `Thu ${formatMoney(due)}`), picker.el];
   }
 
-  async function checkout(session, method) {
+  async function checkout(session, method, blob) {
     if (busy) return;
     busy = true;
     try {
-      const blob = await takePhoto();
-      if (!blob) return;
+      const fresh = await db.getSession(session.id); // máy khác vừa trả xe này (đồng bộ ngầm) → không trả lần nữa
+      if (!fresh || fresh.status !== 'in_lot') { lookup(); find({ ticketDate: session.ticketDate, ticketNo: session.ticketNo }, true); return; }
       const outAt = ctx.nowIso();
-      const photoId = uuid();
-      const updated = { ...session, status: 'returned', outAt, outStaffId: ctx.staff.id, outPhotoId: photoId, ...checkoutPayment(session, session.priceAtIn, method) };
+      const photoId = blob ? uuid() : null;
+      const updated = { ...fresh, status: 'returned', outAt, outStaffId: ctx.staff.id, ...(photoId ? { outPhotoId: photoId } : {}),
+        ...checkoutPayment(fresh, fresh.priceAtIn, method) };
       await db.commit({
         sessions: [updated],
-        photos: [{ id: photoId, sessionId: session.id, kind: 'out', takenAt: outAt, deviceId: ctx.deviceId, blob, uploadState: 'pending', attempts: 0 }],
-        ops: [{ opId: uuid(), type: 'checkout', createdAt: outAt, payload: { sessionId: session.id, outAt, outPhotoId: photoId, payMethod: method } }],
+        photos: photoId ? [{ id: photoId, sessionId: session.id, kind: 'out', takenAt: outAt, deviceId: ctx.deviceId, blob, uploadState: 'pending', attempts: 0 }] : [],
+        ops: [{ opId: uuid(), type: 'checkout', createdAt: outAt, payload: { sessionId: session.id, outAt, ...(photoId ? { outPhotoId: photoId } : {}), payMethod: method } }],
       });
-      ensureLocalAnalysis(photoId);
+      if (photoId) ensureLocalAnalysis(photoId);
       sync.kick();
       ctx.changed();
-      toast(`✔ Đã trả xe phiếu ${formatNo(session.ticketNo)} · ${updated.outPaid ? `Thu ${formatMoney(updated.outPaid)}${method === 'transfer' ? ' (chuyển khoản)' : ''}` : 'đã trả lúc gửi'}`, { ms: 4000 });
+      if (navigator.vibrate) navigator.vibrate(80);
+      lastDone = { no: session.ticketNo, at: outAt, plate: session.plate || '', photo: !!photoId,
+        money: updated.outPaid ? `đã thu ${formatMoney(updated.outPaid)}${method === 'transfer' ? ' chuyển khoản' : ' tiền mặt'}` : 'đã trả lúc gửi' };
       lookup();
     } finally {
       busy = false;

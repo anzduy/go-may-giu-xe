@@ -18,7 +18,7 @@ async function checkout(page, no) {
   await page.fill('#typed-no', String(no));
   await page.click('#find-btn');
   await page.click('#checkout-btn');
-  await expect(page.locator('#toast')).toContainText(`Đã trả xe phiếu ${String(no).padStart(3, '0')}`);
+  await expect(page.locator('#checkout-done')).toContainText(`ĐÃ CHO XE RA — Phiếu ${String(no).padStart(3, '0')}`);
 }
 
 test('US5: chốt ca — tiền mặt cần nộp khớp tính tay, chuyển khoản tách riêng, máy chủ xác nhận', async ({ page }) => {
@@ -41,7 +41,8 @@ test('US5: chốt ca — tiền mặt cần nộp khớp tính tay, chuyển kho
   await expect(page.locator('#fee-due')).toHaveText('Thu 5.000đ');
   await page.click('#pay-out [data-pay="transfer"]');
   await page.click('#checkout-btn');
-  await expect(page.locator('#toast')).toContainText('Đã trả xe phiếu 003 · Thu 5.000đ (chuyển khoản)');
+  await expect(page.locator('#checkout-done')).toContainText('Phiếu 003');
+  await expect(page.locator('#checkout-done')).toContainText('đã thu 5.000đ chuyển khoản');
   await page.click('#nav a[href="#shift"]');
   await expect(page.locator('#shift-revenue')).toHaveText('Tiền mặt cần nộp: 10.000đ');
   await expect(page.locator('#shift-transfer')).toContainText('Chuyển khoản: 10.000đ');

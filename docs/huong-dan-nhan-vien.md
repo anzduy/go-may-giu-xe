@@ -28,14 +28,18 @@
 ## Trả xe (cổng ra)
 
 1. Khách đưa phiếu → **quét mã QR** (đưa vào khung camera) hoặc **gõ số** trên phiếu (gõ "37" là được) → **Tìm**.
-2. App hiện **ảnh xe lúc vào**: so với xe khách dắt ra.
-3. **Đúng xe** → xem dòng tiền:
-   - **"✔ Đã trả lúc gửi — không thu nữa"** → không thu, bấm **✔ TRẢ XE**.
-   - **"Thu 5.000đ"** (khách chọn trả lúc ra) → thu tiền, chọn **Tiền mặt** hoặc **Chuyển khoản** → bấm **✔ TRẢ XE**.
-   App tự chụp ảnh xe lúc ra — giữ camera hướng vào xe.
-4. **Khác xe** → bấm **Không khớp** → không trả xe, kiểm tra giấy tờ, tìm đúng xe trong mục **Trong bãi**, báo quản lý.
+2. App hiện **ảnh xe lúc vào**: **so kỹ với xe khách dắt ra** (biển số, màu xe).
+3. Xem dòng tiền:
+   - **"✔ Đã trả lúc gửi — không thu nữa"** → không thu.
+   - **"Thu 5.000đ"** (khách chọn trả lúc ra) → thu tiền, chọn **Tiền mặt** hoặc **Chuyển khoản**.
+4. **Đúng xe** → bấm **✔ CHO XE RA**. Màn hình hiện thẻ xanh **"✔ ĐÃ CHO XE RA — Phiếu 037"** (máy rung nhẹ):
+   thấy thẻ xanh là xe đó **đã xong**, quét luôn phiếu tiếp theo.
+5. **Khác xe** → bấm **Không khớp** → không trả xe, kiểm tra giấy tờ, tìm đúng xe trong mục **Trong bãi**, báo quản lý.
 
-- **"Phiếu đã trả xe lúc …"**: phiếu này đã dùng rồi — hỏi lại khách, báo quản lý.
+- **Chụp ảnh lúc ra là KHÔNG bắt buộc.** Khi thấy cần (xe đắt tiền, khách lạ, nghi ngờ, xe trầy xước…): **trước khi**
+  bấm CHO XE RA, bấm **📷 Chụp ảnh xe ra** → **📸 Chụp**. Có ảnh thì app tự so biển số / màu với lúc vào và cảnh báo
+  nếu khác.
+- **Thẻ đỏ "⛔ Phiếu 037: xe ĐÃ RA lúc …"**: phiếu này đã dùng rồi — **không trả xe**, hỏi lại khách, báo quản lý.
 - **"Phiếu này chưa gửi xe nào"** nhưng khách vừa gửi ở cổng vào: bấm **⟳ Đồng bộ lại**. Vẫn không có (máy cổng vào
   mất mạng) → kiểm tra giấy tờ xe → **Trả xe tạm** → ghi chú lý do → app chụp ảnh và tự ghép khi có mạng.
 - **Có 2 xe cùng số** (một xe gửi từ hôm qua): app cho chọn theo **ảnh và ngày**.

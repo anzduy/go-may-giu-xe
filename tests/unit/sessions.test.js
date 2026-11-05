@@ -8,8 +8,12 @@ const base = {
 const op = (type, payload, extra = {}) => ({ type, payload, staffId: 'st1', createdAt: '2026-11-03T10:00:05.000Z', ...extra });
 
 describe('chuyển trạng thái lượt gửi', () => {
-  it('trả xe cần ảnh lúc ra, thu đúng giá lúc gửi', () => {
-    expect(applyOp(base, op('checkout', { sessionId: 'a', outAt: 'x' })).error).toBe('BAD_REQUEST');
+  it('trả xe: ảnh lúc ra không bắt buộc (mất phiếu thì bắt buộc), thu đúng giá lúc gửi', () => {
+    expect(applyOp(base, op('checkout', { sessionId: 'a' })).error).toBe('BAD_REQUEST'); // thiếu giờ ra
+    const noPhoto = applyOp(base, op('checkout', { sessionId: 'a', outAt: '2026-11-03T11:00:00.000Z' }));
+    expect(noPhoto.session).toMatchObject({ status: 'returned', fee: 5000 });
+    expect(noPhoto.session).not.toHaveProperty('outPhotoId');
+    expect(applyOp(base, op('lostCheckout', { sessionId: 'a', outAt: 'x', note: 'đã xem cà vẹt', fee: 10000 })).error).toBe('BAD_REQUEST');
     const r = applyOp(base, op('checkout', { sessionId: 'a', outAt: '2026-11-03T11:00:00.000Z', outPhotoId: 'p2' }));
     expect(r.session).toMatchObject({ status: 'returned', fee: 5000, outPhotoId: 'p2', outStaffId: 'st1' });
     expect(base.status).toBe('in_lot'); // không sửa object gốc

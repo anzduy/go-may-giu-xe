@@ -1,4 +1,4 @@
-// IN PHIẾU (chỉ quản lý): tạo bộ phiếu cho một ngày, in A4 24 phiếu/trang bằng máy in thường.
+// IN PHIẾU (chỉ quản lý): tạo bộ phiếu cho một ngày, in A4 12 phiếu/trang (phiếu cỡ lớn) bằng máy in thường.
 import { call } from '../api.js';
 import * as db from '../db.js';
 import * as sync from '../sync.js';
