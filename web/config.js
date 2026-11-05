@@ -15,4 +15,9 @@ export function setApiUrl(url) {
 }
 
 export const POLL_MS = 3000;
+
+// In trên phiếu gửi xe.
+export const BOOKING_PHONE = '070 330 3535';
+export const TICKET_NOTICE = 'Quý khách vui lòng tự bảo quản nón bảo hiểm và tài sản để trên xe. '
+  + 'Sân chỉ nhận giữ xe, không chịu trách nhiệm khi các vật dụng này bị mất.';
 export const APP_VERSION = '1.0.0';
