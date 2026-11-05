@@ -15,7 +15,8 @@ test('US3: quản lý tạo 200 phiếu → 17 trang A4 (phiếu cỡ lớn), t�
   await expect(page.locator('.ticket')).toHaveCount(200);
   await expect(page.locator('.ticket .no').first()).toHaveText('001');
   await expect(page.locator('.ticket .qr svg').first()).toBeVisible();
-  await expect(page.locator('.ticket .phone').first()).toHaveText('☎ Đặt sân: 070 330 3535');
+  await expect(page.locator('.ticket .phone').first()).toHaveText('\u260E\uFE0E Đặt sân: 070 330 3535');
+  await expect(page.locator('.ticket .brand').first()).toHaveText('Sân Bóng Đá Gò Mây Arena');
   await expect(page.locator('.ticket .notice').first()).toContainText('không chịu trách nhiệm khi các vật dụng này bị mất');
   const tomorrow = dateKey(Date.now() + 86400000);
   expect(mock.state.batches[0]).toMatchObject({ date: tomorrow, fromNo: 1, toNo: 200 });
