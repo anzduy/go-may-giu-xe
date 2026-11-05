@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createMock, login, today } from './fixtures/mock-api.js';
+import { createMock, login, today, takeOutPhoto } from './fixtures/mock-api.js';
 
 let mock;
 const red = (helmets) => ({ plate: '', color: 'đỏ', vehicleType: 'motorbike', helmetsOnVehicle: helmets, helmetsWorn: 0, otherItems: [],
@@ -44,18 +44,20 @@ test('US7: thiếu mũ → thẻ cảnh báo trong 15 giây + rung; không chặ
   }
   await find(page, 1);
   await expect(page.locator('#in-summary')).toHaveText('Xe máy màu đỏ · 2 mũ');
+  await takeOutPhoto(page); // có ảnh lúc ra mới so sánh được
   await page.click('#checkout-btn');
   const t0 = Date.now();
   await expect(page.locator('#alert-float .alert-card')).toContainText('Phiếu 001: lúc vào 2 mũ, lúc ra 1 mũ', { timeout: 15000 });
   expect(Date.now() - t0).toBeLessThan(15000); // SC-012
   await expect(page.locator('#alert-float .alert-card.medium')).toBeVisible();
   await expect(page.locator('#alert-float .alert-photos img')).toHaveCount(2);
-  expect(await page.evaluate(() => window.__vibrations)).toEqual([[300, 100, 300]]);
+  expect(await page.evaluate(() => window.__vibrations)).toEqual([80, [300, 100, 300]]); // rung nhẹ "đã cho xe ra" rồi rung cảnh báo
 
   // Thẻ cảnh báo không chặn: vẫn trả xe tiếp được
   await find(page, 2);
+  await takeOutPhoto(page); // có ảnh lúc ra mới so sánh được
   await page.click('#checkout-btn');
-  await expect(page.locator('#toast')).toContainText('Đã trả xe phiếu 002');
+  await expect(page.locator('#checkout-done')).toContainText('Phiếu 002');
   await page.waitForTimeout(4000);
   expect(mock.alerts()).toHaveLength(1); // xe 002 không đổi → không cảnh báo
 
@@ -76,6 +78,7 @@ test('US7: iPhone (không rung được) → nháy đỏ toàn màn hình; "Đ�
   await page.click('#nav a[href="#checkout"]');
   await page.locator('#typed-no').waitFor();
   await find(page, 1);
+  await takeOutPhoto(page); // có ảnh lúc ra mới so sánh được
   await page.click('#checkout-btn');
   await expect(page.locator('#alert-flash')).toBeAttached({ timeout: 15000 });
   await expect(page.locator('#alert-float .alert-card')).toBeVisible();
@@ -96,6 +99,7 @@ test('US7: quản lý chỉnh độ nhạy, xem danh sách cảnh báo, xem kế
   await page.click('#nav a[href="#checkout"]');
   await page.locator('#typed-no').waitFor();
   await find(page, 1);
+  await takeOutPhoto(page); // có ảnh lúc ra mới so sánh được
   await page.click('#checkout-btn');
   await expect(page.locator('#alert-float .alert-card')).toBeVisible({ timeout: 15000 });
   await page.click('#alert-float button:has-text("Để sau")');

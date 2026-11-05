@@ -46,7 +46,7 @@ export async function render(root, ctx) {
     h('div', { class: 'muted', id: 'pay-info' }, moneyText(s)),
     h('div', { class: 'side-by-side', id: 'photo-pair', style: 'margin-top:10px' },
       h('figure', {}, asyncPhoto(s.inPhotoId, 'Ảnh lúc vào', db.getPhotoResult), h('figcaption', {}, `Lúc vào ${timeVN(s.inAt)}`)),
-      h('figure', {}, s.outPhotoId ? asyncPhoto(s.outPhotoId, 'Ảnh lúc ra', db.getPhotoResult) : h('div', { class: 'photo-missing' }, 'Chưa trả xe'),
+      h('figure', {}, s.outPhotoId ? asyncPhoto(s.outPhotoId, 'Ảnh lúc ra', db.getPhotoResult) : h('div', { class: 'photo-missing' }, s.outAt ? 'Không chụp ảnh lúc ra' : 'Chưa trả xe'),
         h('figcaption', {}, s.outAt ? `Lúc ra ${timeVN(s.outAt)}` : ''))),
     savePhotosRow(s),
     plateEditor(s, ctx),
@@ -141,7 +141,7 @@ async function analysisCard(s, ctx) {
   const card = h('div', { class: 'card', id: 'analysis-card', style: 'margin-top:10px' },
     h('b', {}, 'Đọc ảnh (biển số, màu xe)'),
     h('div', { class: 'analysis' }, h('div', {}, h('div', { class: 'muted' }, 'Lúc vào'), analysisLine(ain)),
-      h('div', {}, h('div', { class: 'muted' }, 'Lúc ra'), s.outPhotoId ? analysisLine(aout) : h('div', { class: 'muted' }, 'Chưa trả xe'))),
+      h('div', {}, h('div', { class: 'muted' }, 'Lúc ra'), s.outPhotoId ? analysisLine(aout) : h('div', { class: 'muted' }, s.outAt ? 'Không chụp ảnh lúc ra' : 'Chưa trả xe'))),
     note ? h('div', { class: 'muted' }, `So sánh: ${note}`) : null,
     ...alerts.map((a) => h('div', { class: a.status === 'new' ? 'warn-text' : 'muted' },
       `${a.level === 'high' ? '⛔' : '⚠️'} ${a.message}${a.status === 'resolved' ? ` — đã xử lý (${a.resolution})` : ''}`)));

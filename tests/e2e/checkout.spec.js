@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createMock, login, scan, today, SECRET } from './fixtures/mock-api.js';
+import { createMock, login, scan, today, SECRET, takeOutPhoto } from './fixtures/mock-api.js';
 import { encodeQr, dateKey } from '../../web/shared/ticket.js';
 
 let mock;
@@ -35,19 +35,24 @@ test('US2: trả xe bằng quét QR và gõ số, tự chụp ảnh ra, ảnh v�
   await expect(page.locator('#confirm-info')).toContainText('Phiếu 001');
   await expect(page.locator('#confirm-info')).toContainText('Đã trả lúc gửi (tiền mặt) — không thu nữa'); // mặc định thu lúc gửi
   await expect(page.locator('#checkout-view img.photo')).toHaveCount(1); // ảnh lúc vào
+  await expect(page.locator('#out-photo-btn')).toContainText('không bắt buộc');
+  await takeOutPhoto(page); // chụp thêm ảnh lúc ra
   await page.click('#checkout-btn');
-  await expect(toast(page)).toContainText('Đã trả xe phiếu 001 · đã trả lúc gửi');
+  await expect(page.locator('#checkout-done')).toContainText('ĐÃ CHO XE RA — Phiếu 001');
+  await expect(page.locator('#checkout-done')).toContainText('đã trả lúc gửi · có ảnh lúc ra');
   expect(Date.now() - t0).toBeLessThan(8000); // SC-008
 
   // Gõ "2" (không cần số 0 ở đầu)
   await typeNo(page, '2');
   await expect(page.locator('#confirm-info')).toContainText('Phiếu 002');
-  await page.click('#checkout-btn');
-  await expect(toast(page)).toContainText('Đã trả xe phiếu 002');
+  await page.click('#checkout-btn'); // mặc định không chụp ảnh — 1 chạm là xong
+  await expect(page.locator('#checkout-done')).toContainText('ĐÃ CHO XE RA — Phiếu 002');
+  await expect(page.locator('#checkout-done')).not.toContainText('có ảnh');
 
   // Quét lại phiếu đã trả
   await scan(page, encodeQr(today(), 1, SECRET));
-  await expect(page.locator('#checkout-msg')).toContainText('Phiếu đã trả xe lúc');
+  await expect(page.locator('#already-out')).toContainText('Phiếu 001: xe ĐÃ RA lúc');
+  await expect(page.locator('#already-out')).toContainText('KHÔNG trả xe lần nữa');
   // Phiếu chưa dùng
   await typeNo(page, '50');
   await expect(page.locator('#checkout-msg')).toHaveText('Phiếu này chưa gửi xe nào');
@@ -62,11 +67,16 @@ test('US2: trả xe bằng quét QR và gõ số, tự chụp ảnh ra, ảnh v�
   const s1 = mock.sessions().find((s) => s.ticketNo === 1);
   expect(s1).toMatchObject({ status: 'returned', fee: 5000 });
   expect(s1.outPhotoId).toBeTruthy();
+  expect(mock.sessions().find((s) => s.ticketNo === 2).outPhotoId).toBeUndefined(); // trả xe không chụp ảnh
+  await expect.poll(() => mock.photos.size, { timeout: 15000 }).toBe(4); // 3 ảnh vào + 1 ảnh ra
   expect(mock.sessions().find((s) => s.ticketNo === 3).status).toBe('in_lot');
 
-  // Chi tiết lượt: 2 ảnh cạnh nhau
+  // Chi tiết lượt: 2 ảnh cạnh nhau; lượt không chụp ảnh ra ghi rõ
   await page.goto(`/#session?id=${s1.id}`);
   await expect(page.locator('#photo-pair img')).toHaveCount(2);
+  await page.goto(`/#session?id=${mock.sessions().find((s) => s.ticketNo === 2).id}`);
+  await expect(page.locator('#photo-pair')).toContainText('Không chụp ảnh lúc ra');
+  await page.goto(`/#session?id=${s1.id}`);
   await expect(page.locator('.timeline')).toContainText('Trả xe');
 });
 
@@ -107,7 +117,7 @@ test('US2 + FR-014: máy cổng vào gửi xe, máy cổng ra thấy trong 5 gi�
   await typeNo(b, '1');
   await expect(b.locator('#confirm-info')).toContainText('Tuấn nhận');
   await b.click('#checkout-btn');
-  await expect(b.locator('#toast')).toContainText('Đã trả xe phiếu 001');
+  await expect(b.locator('#checkout-done')).toContainText('Phiếu 001');
   await expect.poll(() => mock.sessions()[0].status, { timeout: 5000 }).toBe('returned');
   expect(mock.sessions()[0].outStaffId).toBe('st_b');
   await gateIn.close();

@@ -1,5 +1,6 @@
-// Chia phiếu thành trang A4 (mặc định 24 phiếu/trang: 3 cột × 8 hàng), mỗi trang là các số liên tiếp.
-export const PER_PAGE = 24;
+// Chia phiếu thành trang A4 (mặc định 12 phiếu/trang: 2 cột × 6 hàng, mỗi phiếu ~97 × 47 mm — gấp đôi diện tích
+// bản cũ 24 phiếu/trang), mỗi trang là các số liên tiếp.
+export const PER_PAGE = 12;
 
 export function paginate(tickets, perPage = PER_PAGE) {
   const pages = [];

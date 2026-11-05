@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createMock, login, today } from './fixtures/mock-api.js';
+import { createMock, login, today, takeOutPhoto } from './fixtures/mock-api.js';
 
 let mock;
 test.beforeEach(async ({ context }) => {
@@ -39,8 +39,9 @@ test('US6: ảnh lúc ra được tải lên trước ảnh lúc vào', async ({
   await page.click('#nav a[href="#checkout"]');
   await page.fill('#typed-no', '2');
   await page.click('#find-btn');
+  await takeOutPhoto(page);
   await page.click('#checkout-btn');
-  await expect(page.locator('#toast')).toContainText('Đã trả xe phiếu 002');
+  await expect(page.locator('#checkout-done')).toContainText('Phiếu 002');
   await context.setOffline(false);
   await expect.poll(() => mock.photos.size, { timeout: 30000 }).toBe(4);
   const order = mock.requests.filter((r) => r.action === 'uploadPhoto').map((r) => r.data.kind);

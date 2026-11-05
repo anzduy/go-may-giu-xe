@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { createMock, login, SECRET } from './fixtures/mock-api.js';
 import { parseQr, dateKey } from '../../web/shared/ticket.js';
 
-test('US3: quản lý tạo 200 phiếu → 9 trang A4, tạo thêm 50 nối tiếp từ 201', async ({ page, context }) => {
+test('US3: quản lý tạo 200 phiếu → 17 trang A4 (phiếu cỡ lớn), tạo thêm 50 nối tiếp từ 201', async ({ page, context }) => {
   const mock = createMock();
   await mock.attach(context);
   await login(page, 'Quản lý', '111111');
@@ -11,7 +11,7 @@ test('US3: quản lý tạo 200 phiếu → 9 trang A4, tạo thêm 50 nối ti�
   await page.click('#create-batch');
   await expect(page.locator('#batch-msg')).toContainText('Phiếu 001–200');
   expect(Date.now() - t0).toBeLessThan(60000); // SC-003
-  await expect(page.locator('.print-page')).toHaveCount(9);
+  await expect(page.locator('.print-page')).toHaveCount(17);
   await expect(page.locator('.ticket')).toHaveCount(200);
   await expect(page.locator('.ticket .no').first()).toHaveText('001');
   await expect(page.locator('.ticket .qr svg').first()).toBeVisible();

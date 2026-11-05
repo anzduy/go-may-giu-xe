@@ -55,7 +55,7 @@ test('Lỡ thoát rồi đăng nhập lại (chưa chốt ca) → vẫn giữ s�
   await page.locator('#typed-no').waitFor();
   for (const no of [1, 2]) {
     await page.fill('#typed-no', String(no)); await page.click('#find-btn'); await page.click('#checkout-btn');
-    await expect(page.locator('#toast')).toContainText(`Đã trả xe phiếu 00${no}`);
+    await expect(page.locator('#checkout-done')).toContainText(`Phiếu 00${no}`);
   }
   await expect(page.locator('#count-pending')).toHaveText('Chờ đồng bộ: 0', { timeout: 10000 });
   // Có thể có 2 câu hỏi liên tiếp (còn thao tác chưa gửi + chưa chốt ca) → đồng ý tất cả, ghi lại nội dung
